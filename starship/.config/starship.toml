@@ -1,0 +1,41 @@
+add_newline = false
+
+format = """
+$directory\
+$git_branch\
+$git_status\
+$nodejs\
+$python\
+$rust\
+$docker_context\
+$cmd_duration\
+$character"""
+
+[character]
+success_symbol = "❯"
+error_symbol = "❌ ❯"
+
+[cmd_duration]
+min_time = 50
+format = "took [$duration]($style) "
+
+[directory]
+truncation_length = 3
+
+[git_branch]
+symbol = "🌿 "
+
+[git_status]
+format = '([$all_status$ahead_behind]($style) )'
+
+[nodejs]
+symbol = "⬢ "
+
+[python]
+symbol = "🐍 "
+
+[rust]
+symbol = "🦀 "
+
+[docker_context]
+symbol = "🐳 "
