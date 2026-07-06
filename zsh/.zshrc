@@ -45,3 +45,13 @@ zinit light zsh-users/zsh-syntax-highlighting
 autoload -Uz compinit
 compinit -C
 eval "$(starship init zsh)"
+
+# bun completions
+[ -s "/home/tanutchakorn/.bun/_bun" ] && source "/home/tanutchakorn/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+
+# opencode
+export PATH=/home/tanutchakorn/.opencode/bin:$PATH
