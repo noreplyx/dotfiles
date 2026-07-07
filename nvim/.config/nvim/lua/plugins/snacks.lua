@@ -5,6 +5,9 @@ return {
       explorer = {
         hidden = true,
       },
+      picker = {
+        hidden = true,
+      },
     },
   },
 }
