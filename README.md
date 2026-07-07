@@ -2,6 +2,72 @@
 
 Configuration for my development environment on Fedora Linux.
 
+## How to use this project
+
+This repository uses [GNU Stow](https://www.gnu.org/software/stow/) to manage
+dotfiles as symlinks. Each directory (`zsh/`, `tmux/`, `nvim/`, `starship/`)
+mirrors the target home directory structure. Running `stow` creates symlinks
+from your home directory back into this repo, so changes are tracked in one
+place.
+
+### Quick start
+
+```bash
+# 1. Install prerequisites
+sudo dnf install -y git stow zsh tmux neovim curl fzf ripgrep fd-find bat eza zoxide
+
+# 2. Clone
+git clone <YOUR_REPO_URL> ~/Codes/dotfiles
+cd ~/Codes/dotfiles
+
+# 3. Deploy symlinks
+stow -t ~ zsh tmux starship nvim
+
+# 4. Install Zinit (Zsh plugin manager)
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma-continuum/zinit/HEAD/scripts/install.sh)"
+
+# 5. Install Starship prompt
+curl -sS https://starship.rs/install.sh | sh
+
+# 6. Set Zsh as default shell
+chsh -s /usr/bin/zsh
+
+# 7. Restart shell
+exec zsh
+```
+
+### Updating
+
+After editing any config file in this repo:
+
+```bash
+cd ~/Codes/dotfiles
+git add -A
+git commit -m "description of change"
+git push
+```
+
+On another machine, pull and re-stow:
+
+```bash
+cd ~/Codes/dotfiles
+git pull
+stow -t ~ zsh tmux starship nvim
+```
+
+### Adding a new config
+
+```bash
+# Create the directory structure matching your home directory
+mkdir -p nvim/.config/nvim/lua/plugins
+# Place your config file
+cp ~/.config/nvim/lua/plugins/example.lua nvim/.config/nvim/lua/plugins/example.lua
+# Stow it
+stow -t ~ nvim
+```
+
+---
+
 ## Included
 
 - **Zsh** — Zinit plugin manager with autosuggestions, completions, fzf-tab, syntax highlighting
@@ -34,107 +100,6 @@ sudo dnf install -y \
 ```
 
 Install a [Nerd Font](https://www.nerdfonts.com/) (e.g. JetBrainsMono) for icons in Neovim and Starship.
-
----
-
-## Clone
-
-```bash
-git clone <YOUR_REPO_URL> ~/Codes/dotfiles
-cd ~/Codes/dotfiles
-```
-
----
-
-## Deploy with GNU Stow
-
-```bash
-stow -t ~ zsh
-stow -t ~ tmux
-stow -t ~ starship
-stow -t ~ nvim
-```
-
-Verify:
-
-```bash
-ls -l ~/.zshrc
-ls -l ~/.tmux.conf
-ls -l ~/.config/starship.toml
-ls -l ~/.config/nvim
-```
-
-Each file should point back to this repository.
-
----
-
-## Install Zinit
-
-```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma-continuum/zinit/HEAD/scripts/install.sh)"
-```
-
-Restart Zsh:
-
-```bash
-exec zsh
-```
-
-Plugins configured in `.zshrc` will be installed automatically on first load.
-
----
-
-## Install Starship
-
-```bash
-curl -sS https://starship.rs/install.sh | sh
-```
-
----
-
-## Set Zsh as default shell
-
-```bash
-chsh -s /usr/bin/zsh
-```
-
-Log out and log back in. Verify:
-
-```bash
-echo $SHELL
-# /usr/bin/zsh
-```
-
----
-
-## Reload configuration
-
-```bash
-source ~/.zshrc
-```
-
-or simply restart the terminal.
-
----
-
-## Updating
-
-After editing any configuration:
-
-```bash
-cd ~/Codes/dotfiles
-git add .
-git commit -m "Update configuration"
-git push
-```
-
-On another machine:
-
-```bash
-cd ~/Codes/dotfiles
-git pull
-stow -t ~ zsh tmux starship nvim
-```
 
 ---
 
