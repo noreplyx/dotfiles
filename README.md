@@ -1,25 +1,21 @@
 # Dotfiles
 
-Configuration for my development environment.
+Configuration for my development environment on Fedora Linux.
 
 ## Included
 
-* **Zsh**
-* **tmux**
-* **Starship**
-* (สามารถเพิ่ม Neovim, Git, Kitty ฯลฯ ได้ภายหลัง)
+- **Zsh** — Zinit plugin manager with autosuggestions, completions, fzf-tab, syntax highlighting
+- **tmux** — TPM plugins for session persistence, fzf navigation, status enhancements
+- **Starship** — Minimal prompt with directory, git status, and language runtime info
+- **Neovim** — LazyVim-based IDE with TypeScript, .NET, Docker, SQL, testing, debugging, Git integration
 
 ---
 
 ## Prerequisites (Fedora)
 
-Update packages:
-
 ```bash
 sudo dnf upgrade -y
 ```
-
-Install required packages:
 
 ```bash
 sudo dnf install -y \
@@ -27,6 +23,7 @@ sudo dnf install -y \
   stow \
   zsh \
   tmux \
+  neovim \
   curl \
   fzf \
   ripgrep \
@@ -36,25 +33,26 @@ sudo dnf install -y \
   zoxide
 ```
 
+Install a [Nerd Font](https://www.nerdfonts.com/) (e.g. JetBrainsMono) for icons in Neovim and Starship.
+
 ---
 
-## Clone this repository
+## Clone
 
 ```bash
-git clone <YOUR_GIT_REPOSITORY_URL> ~/Codes/dotfiles
+git clone <YOUR_REPO_URL> ~/Codes/dotfiles
 cd ~/Codes/dotfiles
 ```
 
 ---
 
-## Install configurations
-
-Create symbolic links using GNU Stow:
+## Deploy with GNU Stow
 
 ```bash
 stow -t ~ zsh
 stow -t ~ tmux
 stow -t ~ starship
+stow -t ~ nvim
 ```
 
 Verify:
@@ -63,6 +61,7 @@ Verify:
 ls -l ~/.zshrc
 ls -l ~/.tmux.conf
 ls -l ~/.config/starship.toml
+ls -l ~/.config/nvim
 ```
 
 Each file should point back to this repository.
@@ -81,7 +80,7 @@ Restart Zsh:
 exec zsh
 ```
 
-Plugins configured in `.zshrc` will be installed automatically the first time they are loaded.
+Plugins configured in `.zshrc` will be installed automatically on first load.
 
 ---
 
@@ -91,32 +90,19 @@ Plugins configured in `.zshrc` will be installed automatically the first time th
 curl -sS https://starship.rs/install.sh | sh
 ```
 
-Verify:
-
-```bash
-starship --version
-```
-
 ---
 
-## Set Zsh as the default shell
+## Set Zsh as default shell
 
 ```bash
 chsh -s /usr/bin/zsh
 ```
 
-Log out and log back in.
-
-Verify:
+Log out and log back in. Verify:
 
 ```bash
 echo $SHELL
-```
-
-Expected output:
-
-```text
-/usr/bin/zsh
+# /usr/bin/zsh
 ```
 
 ---
@@ -137,7 +123,6 @@ After editing any configuration:
 
 ```bash
 cd ~/Codes/dotfiles
-
 git add .
 git commit -m "Update configuration"
 git push
@@ -147,12 +132,8 @@ On another machine:
 
 ```bash
 cd ~/Codes/dotfiles
-
 git pull
-
-stow -t ~ zsh
-stow -t ~ tmux
-stow -t ~ starship
+stow -t ~ zsh tmux starship nvim
 ```
 
 ---
@@ -168,6 +149,30 @@ dotfiles/
 ├── starship/
 │   └── .config/
 │       └── starship.toml
+├── nvim/
+│   └── .config/
+│       └── nvim/
+│           ├── init.lua
+│           ├── lazyvim.json
+│           ├── lazy-lock.json
+│           ├── stylua.toml
+│           ├── lua/
+│           │   ├── config/
+│           │   │   ├── lazy.lua
+│           │   │   ├── options.lua
+│           │   │   ├── keymaps.lua
+│           │   │   └── autocmds.lua
+│           │   └── plugins/
+│           │       ├── aerial.lua
+│           │       ├── colors.lua
+│           │       ├── gitsigns.lua
+│           │       ├── indent-blankline.lua
+│           │       ├── neogit.lua
+│           │       ├── neotest.lua
+│           │       ├── rainbow-delimiters.lua
+│           │       ├── snacks.lua
+│           │       └── ts-config.lua
+│           └── .gitignore
 └── README.md
 ```
 
@@ -175,20 +180,16 @@ dotfiles/
 
 ## Troubleshooting
 
-Remove existing symbolic links:
+Remove existing symlinks:
 
 ```bash
-stow -D -t ~ zsh
-stow -D -t ~ tmux
-stow -D -t ~ starship
+stow -D -t ~ zsh tmux starship nvim
 ```
 
 Recreate them:
 
 ```bash
-stow -t ~ zsh
-stow -t ~ tmux
-stow -t ~ starship
+stow -t ~ zsh tmux starship nvim
 ```
 
 Check where a symlink points:
@@ -197,5 +198,5 @@ Check where a symlink points:
 ls -l ~/.zshrc
 ls -l ~/.tmux.conf
 ls -l ~/.config/starship.toml
+ls -l ~/.config/nvim
 ```
-
