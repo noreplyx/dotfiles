@@ -47,11 +47,18 @@ compinit -C
 eval "$(starship init zsh)"
 
 # bun completions
-[ -s "/home/tanutchakorn/.bun/_bun" ] && source "/home/tanutchakorn/.bun/_bun"
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
 # opencode
-export PATH=/home/tanutchakorn/.opencode/bin:$PATH
+export PATH="$HOME/.opencode/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
+
+
+# Added by Antigravity CLI installer
+export PATH="/home/tanutchakorn/.local/bin:$PATH"
+export PATH="$HOME/.local/bin/flutter/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
