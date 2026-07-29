@@ -5,17 +5,13 @@
 DOTFILES_PLUGINS="$HOME/Codes/dotfiles/tmux/plugins"
 TMUX_PLUGINS="$HOME/.tmux/plugins"
 
-shopt -s globstar
-
 for plugin_dir in "$DOTFILES_PLUGINS"/*/; do
   plugin_name=$(basename "$plugin_dir")
   target_dir="$TMUX_PLUGINS/$plugin_name"
   if [ -d "$target_dir" ]; then
-    for file in "$plugin_dir"**/*; do
-      if [ -f "$file" ]; then
-        rel_path="${file#$plugin_dir}"
-        ln -sf "$file" "$target_dir/$rel_path"
-      fi
-    done
+    find "$plugin_dir" -type f -exec sh -c '
+      p="$1"; t="$2"; shift 2
+      for f; do ln -sf "$f" "$t/${f#$p}"; done
+    ' sh "$plugin_dir" "$target_dir" {} +
   fi
 done

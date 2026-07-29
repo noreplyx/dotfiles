@@ -1,6 +1,6 @@
 # Dotfiles
 
-Configuration for my development environment on Fedora Linux.
+Configuration for my development environment on Fedora Linux and macOS.
 
 ## How to use this project
 
@@ -10,7 +10,7 @@ mirrors the target home directory structure. Running `stow` creates symlinks
 from your home directory back into this repo, so changes are tracked in one
 place.
 
-### Quick start
+### Quick start (Fedora)
 
 ```bash
 # 1. Install prerequisites
@@ -31,6 +31,32 @@ curl -sS https://starship.rs/install.sh | sh
 
 # 6. Set Zsh as default shell
 chsh -s /usr/bin/zsh
+
+# 7. Restart shell
+exec zsh
+```
+
+### Quick start (macOS)
+
+```bash
+# 1. Install prerequisites
+brew install git stow zsh tmux neovim curl fzf ripgrep fd bat eza zoxide
+
+# 2. Clone
+git clone <YOUR_REPO_URL> ~/Codes/dotfiles
+cd ~/Codes/dotfiles
+
+# 3. Deploy symlinks
+stow -t ~ zsh tmux starship nvim
+
+# 4. Install Zinit (Zsh plugin manager)
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma-continuum/zinit/HEAD/scripts/install.sh)"
+
+# 5. Install Starship prompt
+curl -sS https://starship.rs/install.sh | sh
+
+# 6. Set Zsh as default shell (macOS already uses Zsh by default)
+# chsh -s /bin/zsh
 
 # 7. Restart shell
 exec zsh
@@ -77,7 +103,9 @@ stow -t ~ nvim
 
 ---
 
-## Prerequisites (Fedora)
+## Prerequisites
+
+### Fedora
 
 ```bash
 sudo dnf upgrade -y
@@ -94,6 +122,28 @@ sudo dnf install -y \
   fzf \
   ripgrep \
   fd-find \
+  bat \
+  eza \
+  zoxide
+```
+
+### macOS
+
+```bash
+brew update
+```
+
+```bash
+brew install \
+  git \
+  stow \
+  zsh \
+  tmux \
+  neovim \
+  curl \
+  fzf \
+  ripgrep \
+  fd \
   bat \
   eza \
   zoxide
