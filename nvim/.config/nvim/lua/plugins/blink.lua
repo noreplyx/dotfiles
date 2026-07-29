@@ -9,10 +9,6 @@ return {
               return vim.fn.getcmdtype() == ":"
             end,
           },
-          documentation = {
-            auto_show = true,
-            auto_show_delay_ms = 200,
-          },
         },
       },
     },
