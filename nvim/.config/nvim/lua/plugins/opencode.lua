@@ -13,6 +13,11 @@ return {
       "saghen/blink.cmp",
       "folke/snacks.nvim",
     },
-    opts = {},
+    opts = {
+      server = {
+        url = "http://127.0.0.1",
+        port = 4096,
+      },
+    },
   },
 }
