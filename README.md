@@ -23,16 +23,22 @@ cd ~/Codes/dotfiles
 # 3. Deploy symlinks
 stow -t ~ zsh tmux starship nvim
 
-# 4. Install Zinit (Zsh plugin manager)
+# 4. Install TPM (Tmux Plugin Manager)
+git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+
+# 5. Install Zinit (Zsh plugin manager)
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma-continuum/zinit/HEAD/scripts/install.sh)"
 
-# 5. Install Starship prompt
+# 6. Install Starship prompt
 curl -sS https://starship.rs/install.sh | sh
 
-# 6. Set Zsh as default shell
+# 7. Set Zsh as default shell
 chsh -s /usr/bin/zsh
 
-# 7. Restart shell
+# 8. Start tmux and press prefix+I to install plugins
+tmux new-session -s init
+
+# 9. Restart shell
 exec zsh
 ```
 
@@ -49,16 +55,22 @@ cd ~/Codes/dotfiles
 # 3. Deploy symlinks
 stow -t ~ zsh tmux starship nvim
 
-# 4. Install Zinit (Zsh plugin manager)
+# 4. Install TPM (Tmux Plugin Manager)
+git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+
+# 5. Install Zinit (Zsh plugin manager)
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma-continuum/zinit/HEAD/scripts/install.sh)"
 
-# 5. Install Starship prompt
+# 6. Install Starship prompt
 curl -sS https://starship.rs/install.sh | sh
 
-# 6. Set Zsh as default shell (macOS already uses Zsh by default)
+# 7. Set Zsh as default shell (macOS already uses Zsh by default)
 # chsh -s /bin/zsh
 
-# 7. Restart shell
+# 8. Start tmux and press prefix+I to install plugins
+tmux new-session -s init
+
+# 9. Restart shell
 exec zsh
 ```
 
@@ -97,7 +109,7 @@ stow -t ~ nvim
 ## Included
 
 - **Zsh** — Zinit plugin manager with autosuggestions, completions, fzf-tab, syntax highlighting
-- **tmux** — TPM plugins for session persistence, fzf navigation, status enhancements
+- **tmux** — TPM with tmux-sensible, tmux-sessionx (fzf session switcher), prefix-highlight. Vim-style pane resize, 72/28 split layout, custom fzf colors.
 - **Starship** — Minimal prompt with directory, git status, and language runtime info
 - **Neovim** — LazyVim-based IDE with TypeScript, .NET, Docker, SQL, testing, debugging, Git integration
 
@@ -160,7 +172,14 @@ dotfiles/
 ├── zsh/
 │   └── .zshrc
 ├── tmux/
-│   └── .tmux.conf
+│   ├── .tmux.conf
+│   ├── scripts/
+│   │   └── apply-plugin-overrides.sh
+│   └── plugins/
+│       └── tmux-sessionx/
+│           ├── sessionx.tmux
+│           └── scripts/
+│               └── sessionx.sh
 ├── starship/
 │   └── .config/
 │       └── starship.toml
@@ -193,6 +212,46 @@ dotfiles/
 
 ---
 
+## Tmux
+
+### Keybindings
+
+| Key              | Action                        |
+| ---------------- | ----------------------------- |
+| `prefix + o`     | Launch sessionx (fzf session switcher) |
+| `prefix + H/J/K/L` | Resize pane left/down/up/right (5 cells) |
+| `prefix + I`     | Install/update TPM plugins    |
+| `prefix + R`     | Reload tmux config             |
+
+### sessionx (inside the fzf popup)
+
+| Key           | Action                        |
+| ------------- | ----------------------------- |
+| `enter`       | Switch to / create session    |
+| `ctrl-w`      | List all windows              |
+| `ctrl-t`      | Tree view of sessions+windows |
+| `ctrl-x`      | Browse config directory       |
+| `ctrl-e`      | Browse local directories      |
+| `ctrl-b`      | Go back to session list       |
+| `ctrl-r`      | Rename selected session       |
+| `alt-bspace`  | Kill selected session         |
+| `ctrl-u/d`    | Scroll preview up/down        |
+| `?`           | Toggle preview pane           |
+
+### Status bar
+
+```
+[prefix] | session_name | HH:MM
+```
+
+Shows prefix highlight indicator, current session name, and time.
+
+### Layout
+
+New sessions start with a 72/28 horizontal split (left pane 72%, right pane 28%).
+
+---
+
 ## Troubleshooting
 
 Remove existing symlinks:
@@ -214,4 +273,20 @@ ls -l ~/.zshrc
 ls -l ~/.tmux.conf
 ls -l ~/.config/starship.toml
 ls -l ~/.config/nvim
+```
+
+### Tmux
+
+Reinstall TPM plugins:
+
+```bash
+rm -rf ~/.tmux/plugins/tpm
+git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+# Start tmux, press prefix+I
+```
+
+Re-apply plugin overrides:
+
+```bash
+bash ~/Codes/dotfiles/tmux/scripts/apply-plugin-overrides.sh
 ```
