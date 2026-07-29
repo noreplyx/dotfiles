@@ -8,7 +8,8 @@
     "lazyvim.plugins.extras.lang.dotnet",
     "lazyvim.plugins.extras.dap.core",
     "lazyvim.plugins.extras.test.core",
-    "lazyvim.plugins.extras.editor.aerial"
+    "lazyvim.plugins.extras.editor.aerial",
+    "lazyvim.plugins.extras.ui.edgy"
   ],
   "install_version": 8,
   "news": {
