@@ -44,6 +44,7 @@ zinit light zsh-users/zsh-syntax-highlighting
 
 autoload -Uz compinit
 compinit -C
+eval "$(zoxide init zsh)"
 eval "$(starship init zsh)"
 
 # bun completions
