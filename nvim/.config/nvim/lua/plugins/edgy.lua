@@ -9,7 +9,6 @@ return {
         "neotest-summary",
       },
       right = {
-        "neogit",
         "dbui",
         "grug-far",
         "diffview",

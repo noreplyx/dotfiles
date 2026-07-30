@@ -1,0 +1,28 @@
+gui:
+  # ── Diff colors ──
+  diffContextColor: ["#565f89"]
+  diffAddedLineColor: ["#9ece6a"]
+  diffRemovedLineColor: ["#f7768e"]
+  diffAddedLineHighlightColor: ["#9ece6a", "bold"]
+  diffRemovedLineHighlightColor: ["#f7768e", "bold"]
+  diffSectionColor: ["#e0af68"]
+  diffFileColor: ["#7dcfff"]
+
+  # ── Tokyo Night Theme ──
+  theme:
+    lightTheme: false
+    activeBorderColor:
+      - "#7aa2f7"
+      - bold
+    inactiveBorderColor:
+      - "#565f89"
+    selectedLineBgColor:
+      - "#364a82"
+    selectedRangeBgColor:
+      - "#364a82"
+    cherryPickedCommitBgColor:
+      - "#9ece6a"
+    cherryPickedCommitFgColor:
+      - "#1a1b26"
+    unstagedChangesColor:
+      - "#f7768e"
