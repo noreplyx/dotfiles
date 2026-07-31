@@ -3,8 +3,8 @@ gui:
   diffContextColor: ["#565f89"]
   diffAddedLineColor: ["#9ece6a"]
   diffRemovedLineColor: ["#f7768e"]
-  diffAddedLineHighlightColor: ["#9ece6a", "bold", "#2d4a2d"]
-  diffRemovedLineHighlightColor: ["#f7768e", "bold", "#4a2d2d"]
+  diffAddedLineHighlightColor: ["#9ece6a", "bold", "#1e3a1e"]
+  diffRemovedLineHighlightColor: ["#f7768e", "bold", "#3a1e1e"]
   diffSectionColor: ["#e0af68"]
   diffFileColor: ["#7dcfff"]
 
