@@ -2,11 +2,13 @@ return {
   {
     "folke/snacks.nvim",
     opts = {
-      explorer = {
-        hidden = true,
-      },
       picker = {
-        hidden = true,
+        sources = {
+          explorer = {
+            hidden = true,
+            ignored = true,
+          },
+        },
       },
     },
   },
