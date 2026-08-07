@@ -1,0 +1,79 @@
+[manager]
+cwd = { fg = "blue", bold = true }
+hovered = { fg = "black", bg = "cyan", bold = true }
+preview_hovered = { underline = true }
+find_keyword = { fg = "magenta", bold = true }
+find_position = { fg = "magenta", bold = true }
+marker_selected = { fg = "blue" }
+marker_copied = { fg = "green" }
+marker_cut = { fg = "red" }
+tab_active = { fg = "black", bg = "blue", bold = true }
+tab_inactive = { fg = "blue" }
+count = { fg = "cyan", bold = true }
+border_symbol = "│"
+border_style = { fg = "blue" }
+
+[status]
+separator_open = ""
+separator_close = ""
+mode_normal = { fg = "black", bg = "blue", bold = true }
+mode_select = { fg = "black", bg = "magenta", bold = true }
+mode_unset = { fg = "black", bg = "yellow", bold = true }
+progress_label = { fg = "black", bg = "cyan", bold = true }
+progress_normal = { fg = "black", bg = "cyan" }
+progress_error = { fg = "black", bg = "red" }
+permissions_t = { fg = "darkgray" }
+permissions_r = { fg = "yellow" }
+permissions_w = { fg = "red" }
+permissions_x = { fg = "green" }
+permissions_s = { fg = "magenta" }
+
+[input]
+border = { fg = "blue" }
+title = {}
+value = {}
+selected = { reversed = true }
+
+[confirm]
+border = { fg = "blue" }
+title = {}
+content = {}
+list = {}
+button_active = { fg = "black", bg = "blue", bold = true }
+button_normal = { fg = "blue" }
+
+[which]
+cols = 3
+mask = { fg = "black", bg = "blue" }
+cand = { fg = "blue" }
+rest = { fg = "darkgray" }
+desc = { fg = "darkgray" }
+separator = "  "
+separator_style = { fg = "darkgray" }
+
+[spot]
+border = { fg = "blue" }
+title = {}
+content = {}
+selected = { reversed = true }
+
+[task]
+border = { fg = "blue" }
+title = {}
+hovered = { underline = true }
+
+[help]
+border = { fg = "blue" }
+title = {}
+desc = { fg = "darkgray" }
+exec = { fg = "blue" }
+hovered = { fg = "black", bg = "cyan", bold = true }
+
+[git]
+modified = { fg = "yellow" }
+added = { fg = "green" }
+untracked = { fg = "green" }
+ignored = { fg = "darkgray" }
+deleted = { fg = "red" }
+updated = { fg = "blue" }
+clean = { fg = "darkgray" }

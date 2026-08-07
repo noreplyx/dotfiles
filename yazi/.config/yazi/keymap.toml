@@ -1,0 +1,24 @@
+[mgr]
+prepend_keymap = [
+	# smart-enter: open files or enter directories with one key
+	{ on = "l", run = "plugin smart-enter", desc = "Enter the child directory, or open the file" },
+	# jump-to-char: vim-like f<char>
+	{ on = "f", run = "plugin jump-to-char", desc = "Jump to char" },
+	# smart-filter: continuous filtering, auto-enter unique dir
+	{ on = "F", run = "plugin smart-filter", desc = "Smart filter" },
+	# smart-paste: paste into hovered directory or CWD
+	{ on = "p", run = "plugin smart-paste", desc = "Paste into the hovered directory or CWD" },
+	# diff: diff selected with hovered file
+	{ on = "<C-d>", run = "plugin diff", desc = "Diff the selected with the hovered file" },
+	# toggle-pane: show/hide preview pane
+	{ on = "T", run = "plugin toggle-pane min-preview", desc = "Show or hide the preview pane" },
+	# toggle-pane: maximize/restore preview pane
+	{ on = "M", run = "plugin toggle-pane max-preview", desc = "Maximize or restore the preview pane" },
+	# git: toggle git status linemode
+	{ on = [ "g", "s" ], run = "linemode size", desc = "Show size linemode" },
+	# bookmarks
+	{ on = [ "g", "d" ], run = "cd ~/Downloads", desc = "Cd to ~/Downloads" },
+	{ on = [ "g", "c" ], run = "cd ~/Codes", desc = "Cd to ~/Codes" },
+	{ on = [ "g", "h" ], run = "cd ~", desc = "Cd to home" },
+	{ on = [ "g", "z" ], run = "cd ~/.config", desc = "Cd to ~/.config" },
+]

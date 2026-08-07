@@ -21,7 +21,7 @@ git clone <YOUR_REPO_URL> ~/Codes/dotfiles
 cd ~/Codes/dotfiles
 
 # 3. Deploy symlinks
-stow -t ~ zsh tmux starship nvim
+stow -t ~ zsh tmux starship nvim yazi
 
 # 4. Install TPM (Tmux Plugin Manager)
 git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
@@ -32,13 +32,17 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma-continuum/zinit/
 # 6. Install Starship prompt
 curl -sS https://starship.rs/install.sh | sh
 
-# 7. Set Zsh as default shell
+# 7. Install Yazi and its plugins
+cargo install --locked yazi-fm yazi-cli
+ya pkg install
+
+# 8. Set Zsh as default shell
 chsh -s /usr/bin/zsh
 
-# 8. Start tmux and press prefix+I to install plugins
+# 9. Start tmux and press prefix+I to install plugins
 tmux new-session -s init
 
-# 9. Restart shell
+# 10. Restart shell
 exec zsh
 ```
 
@@ -53,7 +57,7 @@ git clone <YOUR_REPO_URL> ~/Codes/dotfiles
 cd ~/Codes/dotfiles
 
 # 3. Deploy symlinks
-stow -t ~ zsh tmux starship nvim
+stow -t ~ zsh tmux starship nvim yazi
 
 # 4. Install TPM (Tmux Plugin Manager)
 git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
@@ -64,13 +68,17 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma-continuum/zinit/
 # 6. Install Starship prompt
 curl -sS https://starship.rs/install.sh | sh
 
-# 7. Set Zsh as default shell (macOS already uses Zsh by default)
+# 7. Install Yazi and its plugins
+brew install yazi
+ya pkg install
+
+# 8. Set Zsh as default shell (macOS already uses Zsh by default)
 # chsh -s /bin/zsh
 
-# 8. Start tmux and press prefix+I to install plugins
+# 9. Start tmux and press prefix+I to install plugins
 tmux new-session -s init
 
-# 9. Restart shell
+# 10. Restart shell
 exec zsh
 ```
 
@@ -90,7 +98,7 @@ On another machine, pull and re-stow:
 ```bash
 cd ~/Codes/dotfiles
 git pull
-stow -t ~ zsh tmux starship nvim
+stow -t ~ zsh tmux starship nvim yazi
 ```
 
 ### Adding a new config
@@ -112,6 +120,7 @@ stow -t ~ nvim
 - **tmux** — TPM with tmux-sensible, tmux-sessionx (fzf session switcher), prefix-highlight. Vim-style pane resize, 72/28 split layout, custom fzf colors.
 - **Starship** — Minimal prompt with directory, git status, and language runtime info
 - **Neovim** — LazyVim-based IDE with TypeScript, .NET, Docker, SQL, testing, debugging, Git integration
+- **Yazi** — Terminal file manager with image preview (WezTerm), git status linemode, and plugins: smart-enter, full-border, toggle-pane, jump-to-char, smart-filter, smart-paste, diff
 
 ---
 
@@ -136,7 +145,8 @@ sudo dnf install -y \
   fd-find \
   bat \
   eza \
-  zoxide
+  zoxide \
+  yazi
 ```
 
 ### macOS
@@ -158,7 +168,8 @@ brew install \
   fd \
   bat \
   eza \
-  zoxide
+  zoxide \
+  yazi
 ```
 
 Install a [Nerd Font](https://www.nerdfonts.com/) (e.g. JetBrainsMono) for icons in Neovim and Starship.
@@ -207,6 +218,14 @@ dotfiles/
 │           │       ├── snacks.lua
 │           │       └── ts-config.lua
 │           └── .gitignore
+├── yazi/
+│   └── .config/
+│       └── yazi/
+│           ├── yazi.toml
+│           ├── keymap.toml
+│           ├── theme.toml
+│           ├── init.lua
+│           └── package.toml
 └── README.md
 ```
 
@@ -219,6 +238,7 @@ dotfiles/
 | Key              | Action                        |
 | ---------------- | ----------------------------- |
 | `prefix + o`     | Launch sessionx (fzf session switcher) |
+| `prefix + y`     | Launch yazi in a new window   |
 | `prefix + H/J/K/L` | Resize pane left/down/up/right (5 cells) |
 | `prefix + I`     | Install/update TPM plugins    |
 | `prefix + R`     | Reload tmux config             |
@@ -252,18 +272,74 @@ New sessions start with a 72/28 horizontal split (left pane 72%, right pane 28%)
 
 ---
 
+## Yazi
+
+Terminal file manager with image preview (WezTerm), git status linemode, and plugins.
+
+### Plugins
+
+Installed via `ya pkg` (see `yazi/.config/yazi/package.toml`):
+
+- `smart-enter` — open files or enter directories with one key
+- `full-border` — full rounded border
+- `toggle-pane` — show/hide/maximize panes
+- `jump-to-char` — vim-like `f<char>` navigation
+- `git` — git status linemode
+- `smart-filter` — continuous filtering, auto-enter unique dir
+- `smart-paste` — paste into hovered directory or CWD
+- `diff` — diff selected with hovered file
+
+### Keybindings
+
+| Key        | Action                              |
+| ---------- | ----------------------------------- |
+| `l`        | Enter dir or open file (smart-enter) |
+| `f`        | Jump to char                        |
+| `F`        | Smart filter                        |
+| `p`        | Smart paste                         |
+| `T`        | Show/hide preview pane              |
+| `M`        | Maximize/restore preview pane       |
+| `Ctrl-d`   | Diff selected with hovered file     |
+| `g d`      | Cd to ~/Downloads                   |
+| `g c`      | Cd to ~/Codes                       |
+| `g h`      | Cd to home                          |
+| `g z`      | Cd to ~/.config                     |
+
+### Install plugins
+
+```bash
+ya pkg install
+```
+
+### Troubleshooting
+
+Reinstall plugins:
+
+```bash
+rm -rf ~/.config/yazi/plugins
+ya pkg install
+```
+
+Clear image preview cache:
+
+```bash
+yazi --clear-cache
+```
+
+---
+
 ## Troubleshooting
 
 Remove existing symlinks:
 
 ```bash
-stow -D -t ~ zsh tmux starship nvim
+stow -D -t ~ zsh tmux starship nvim yazi
 ```
 
 Recreate them:
 
 ```bash
-stow -t ~ zsh tmux starship nvim
+stow -t ~ zsh tmux starship nvim yazi
 ```
 
 Check where a symlink points:
@@ -273,6 +349,7 @@ ls -l ~/.zshrc
 ls -l ~/.tmux.conf
 ls -l ~/.config/starship.toml
 ls -l ~/.config/nvim
+ls -l ~/.config/yazi
 ```
 
 ### Tmux
