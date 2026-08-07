@@ -23,6 +23,9 @@ edit = [
 	{ run = "$EDITOR %s", block = true, for = "unix" },
 	{ run = "%EDITOR% %s", block = true, for = "windows" },
 ]
+play = [
+	{ run = "celluloid %s1", desc = "Play", for = "unix" },
+]
 open = [
 	{ run = "xdg-open %s1", desc = "Open", for = "unix" },
 	{ run = "open %s1", desc = "Open", for = "macos" },
@@ -42,6 +45,7 @@ prepend_rules = [
 	{ url = "*.zsh", use = "edit" },
 	{ url = "*.conf", use = "edit" },
 	{ url = "*.txt", use = "edit" },
+	{ mime = "{audio,video}/*", use = "play" },
 ]
 
 [tasks]
