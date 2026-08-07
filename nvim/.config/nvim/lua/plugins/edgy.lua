@@ -17,7 +17,6 @@ return {
         "trouble",
         "qf",
         "snacks_terminal",
-        "noice",
         "help",
         "neotest-output-panel",
       },
