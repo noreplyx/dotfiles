@@ -9,7 +9,8 @@
     "lazyvim.plugins.extras.dap.core",
     "lazyvim.plugins.extras.test.core",
     "lazyvim.plugins.extras.editor.aerial",
-    "lazyvim.plugins.extras.ui.edgy"
+    "lazyvim.plugins.extras.ui.edgy",
+    "lazyvim.plugins.extras.util.octo"
   ],
   "install_version": 8,
   "news": {
