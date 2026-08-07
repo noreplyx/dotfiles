@@ -21,7 +21,7 @@ git clone <YOUR_REPO_URL> ~/Codes/dotfiles
 cd ~/Codes/dotfiles
 
 # 3. Deploy symlinks
-stow -t ~ zsh tmux starship nvim yazi
+stow -t ~ zsh tmux starship nvim yazi lazygit lazysql
 
 # 4. Install TPM (Tmux Plugin Manager)
 git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
@@ -36,13 +36,18 @@ curl -sS https://starship.rs/install.sh | sh
 cargo install --locked yazi-fm yazi-cli
 ya pkg install
 
-# 8. Set Zsh as default shell
+# 8. Install LazySQL (TUI database client)
+curl -fsSL -o /tmp/lazysql.tar.gz https://github.com/jorgerojas26/lazysql/releases/latest/download/lazysql_Linux_x86_64.tar.gz
+tar -xzf /tmp/lazysql.tar.gz -C ~/.local/bin
+chmod +x ~/.local/bin/lazysql
+
+# 9. Set Zsh as default shell
 chsh -s /usr/bin/zsh
 
-# 9. Start tmux and press prefix+I to install plugins
+# 10. Start tmux and press prefix+I to install plugins
 tmux new-session -s init
 
-# 10. Restart shell
+# 11. Restart shell
 exec zsh
 ```
 
@@ -57,7 +62,7 @@ git clone <YOUR_REPO_URL> ~/Codes/dotfiles
 cd ~/Codes/dotfiles
 
 # 3. Deploy symlinks
-stow -t ~ zsh tmux starship nvim yazi
+stow -t ~ zsh tmux starship nvim yazi lazygit lazysql
 
 # 4. Install TPM (Tmux Plugin Manager)
 git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
@@ -72,13 +77,16 @@ curl -sS https://starship.rs/install.sh | sh
 brew install yazi
 ya pkg install
 
-# 8. Set Zsh as default shell (macOS already uses Zsh by default)
+# 8. Install LazySQL (TUI database client)
+brew install lazysql
+
+# 9. Set Zsh as default shell (macOS already uses Zsh by default)
 # chsh -s /bin/zsh
 
-# 9. Start tmux and press prefix+I to install plugins
+# 10. Start tmux and press prefix+I to install plugins
 tmux new-session -s init
 
-# 10. Restart shell
+# 11. Restart shell
 exec zsh
 ```
 
@@ -98,7 +106,7 @@ On another machine, pull and re-stow:
 ```bash
 cd ~/Codes/dotfiles
 git pull
-stow -t ~ zsh tmux starship nvim yazi
+stow -t ~ zsh tmux starship nvim yazi lazygit lazysql
 ```
 
 ### Adding a new config
@@ -121,6 +129,7 @@ stow -t ~ nvim
 - **Starship** — Minimal prompt with directory, git status, and language runtime info
 - **Neovim** — LazyVim-based IDE with TypeScript, .NET, Docker, SQL, testing, debugging, Git integration
 - **Yazi** — Terminal file manager with image preview (WezTerm), git status linemode, and plugins: smart-enter, full-border, toggle-pane, jump-to-char, smart-filter, smart-paste, diff
+- **LazySQL** — TUI database client (MySQL, PostgreSQL, SQLite, MSSQL, MongoDB) with configurable connections, opened from Neovim with `<leader>ls`
 
 ---
 
@@ -226,7 +235,14 @@ dotfiles/
 │           ├── theme.toml
 │           ├── init.lua
 │           └── package.toml
-└── README.md
+├── lazygit/
+│   └── .config/
+│       └── lazygit/
+│           └── config.yml
+└── lazysql/
+    └── .config/
+        └── lazysql/
+            └── config.toml
 ```
 
 ---
@@ -333,13 +349,13 @@ yazi --clear-cache
 Remove existing symlinks:
 
 ```bash
-stow -D -t ~ zsh tmux starship nvim yazi
+stow -D -t ~ zsh tmux starship nvim yazi lazygit lazysql
 ```
 
 Recreate them:
 
 ```bash
-stow -t ~ zsh tmux starship nvim yazi
+stow -t ~ zsh tmux starship nvim yazi lazygit lazysql
 ```
 
 Check where a symlink points:
