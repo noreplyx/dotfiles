@@ -1,41 +1,69 @@
 add_newline = false
 
 format = """
+$username\
+$hostname\
 $directory\
 $git_branch\
+$git_commit\
 $git_status\
+$package\
 $nodejs\
 $python\
 $rust\
 $docker_context\
 $cmd_duration\
+$status\
 $character"""
 
 [character]
-success_symbol = "❯"
-error_symbol = "❌ ❯"
+success_symbol = ">"
+error_symbol = "x >"
+vicmd_symbol = "<"
 
 [cmd_duration]
 min_time = 50
+show_milliseconds = true
 format = "took [$duration]($style) "
 
 [directory]
 truncation_length = 3
+read_only = " [ro]"
+fish_style_pwd_dir_length = 2
 
 [git_branch]
-symbol = "🌿 "
+symbol = "git:"
+
+[git_commit]
+style = "bold green"
 
 [git_status]
 format = '([$all_status$ahead_behind]($style) )'
+ahead = "ahead ${count}"
+behind = "behind ${count}"
+
+[hostname]
+ssh_only = true
+format = "[$hostname]($style) "
 
 [nodejs]
-symbol = "⬢ "
+symbol = "node "
+version_format = "v${major}.${minor}"
+
+[package]
+symbol = "pkg "
 
 [python]
-symbol = "🐍 "
+symbol = "py "
+version_format = "v${major}.${minor}"
 
 [rust]
-symbol = "🦀 "
+symbol = "rs "
 
 [docker_context]
-symbol = "🐳 "
+symbol = "docker "
+
+[status]
+disabled = false
+format = "[$symbol$status]($style) "
+symbol = "err "
