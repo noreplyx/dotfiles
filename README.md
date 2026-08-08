@@ -10,85 +10,31 @@ mirrors the target home directory structure. Running `stow` creates symlinks
 from your home directory back into this repo, so changes are tracked in one
 place.
 
-### Quick start (Fedora)
+### Quick start
 
 ```bash
-# 1. Install prerequisites
-sudo dnf install -y git stow zsh tmux neovim curl fzf ripgrep fd-find bat eza zoxide
-
-# 2. Clone
+# 1. Clone
 git clone <YOUR_REPO_URL> ~/Codes/dotfiles
 cd ~/Codes/dotfiles
 
-# 3. Deploy symlinks
-stow -t ~ zsh tmux starship nvim yazi lazygit lazysql
+# 2. Run the bootstrap script (installs deps, plugins, and symlinks)
+./setup.sh
 
-# 4. Install TPM (Tmux Plugin Manager)
-git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
-
-# 5. Install Zinit (Zsh plugin manager)
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma-continuum/zinit/HEAD/scripts/install.sh)"
-
-# 6. Install Starship prompt
-curl -sS https://starship.rs/install.sh | sh
-
-# 7. Install Yazi and its plugins
-cargo install --locked yazi-fm yazi-cli
-ya pkg install
-
-# 8. Install LazySQL (TUI database client)
-curl -fsSL -o /tmp/lazysql.tar.gz https://github.com/jorgerojas26/lazysql/releases/latest/download/lazysql_Linux_x86_64.tar.gz
-tar -xzf /tmp/lazysql.tar.gz -C ~/.local/bin
-chmod +x ~/.local/bin/lazysql
-
-# 9. Set Zsh as default shell
+# 3. Set Zsh as default shell
 chsh -s /usr/bin/zsh
 
-# 10. Start tmux and press prefix+I to install plugins
+# 4. Start tmux and press prefix+I to install plugins
 tmux new-session -s init
 
-# 11. Restart shell
+# 5. Restart shell
 exec zsh
 ```
 
-### Quick start (macOS)
+`setup.sh` is idempotent and detects Fedora vs macOS (dnf vs brew). Steps that
+require interaction (changing your shell, tmux plugin install) are left manual.
 
-```bash
-# 1. Install prerequisites
-brew install git stow zsh tmux neovim curl fzf ripgrep fd bat eza zoxide
-
-# 2. Clone
-git clone <YOUR_REPO_URL> ~/Codes/dotfiles
-cd ~/Codes/dotfiles
-
-# 3. Deploy symlinks
-stow -t ~ zsh tmux starship nvim yazi lazygit lazysql
-
-# 4. Install TPM (Tmux Plugin Manager)
-git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
-
-# 5. Install Zinit (Zsh plugin manager)
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma-continuum/zinit/HEAD/scripts/install.sh)"
-
-# 6. Install Starship prompt
-curl -sS https://starship.rs/install.sh | sh
-
-# 7. Install Yazi and its plugins
-brew install yazi
-ya pkg install
-
-# 8. Install LazySQL (TUI database client)
-brew install lazysql
-
-# 9. Set Zsh as default shell (macOS already uses Zsh by default)
-# chsh -s /bin/zsh
-
-# 10. Start tmux and press prefix+I to install plugins
-tmux new-session -s init
-
-# 11. Restart shell
-exec zsh
-```
+Per-machine settings (e.g. Flutter, Antigravity CLI paths) go in
+`~/.zshrc.local`, which is sourced automatically and not tracked by git.
 
 ### Updating
 
@@ -106,7 +52,7 @@ On another machine, pull and re-stow:
 ```bash
 cd ~/Codes/dotfiles
 git pull
-stow -t ~ zsh tmux starship nvim yazi lazygit lazysql
+make install
 ```
 
 ### Adding a new config
@@ -128,8 +74,18 @@ stow -t ~ nvim
 - **tmux** — TPM with tmux-sensible, tmux-sessionx (fzf session switcher), prefix-highlight. Vim-style pane resize, 72/28 split layout, custom fzf colors.
 - **Starship** — Minimal prompt with directory, git status, and language runtime info
 - **Neovim** — LazyVim-based IDE with TypeScript, .NET, Docker, SQL, testing, debugging, Git integration
-- **Yazi** — Terminal file manager with image preview (WezTerm), git status linemode, and plugins: smart-enter, full-border, toggle-pane, jump-to-char, smart-filter, smart-paste, diff
+- **Yazi** — Terminal file manager with image preview (WezTerm), git status linemode, and plugins: smart-enter, full-border, toggle-pane, jump-to-char, smart-filter, smart-paste, diff, githead, yaziline
+- **LazyGit** — TUI git client with Tokyo Night theme, opened from Neovim with `<leader>gg`
 - **LazySQL** — TUI database client (MySQL, PostgreSQL, SQLite, MSSQL, MongoDB) with configurable connections, opened from Neovim with `<leader>ls`
+
+### Neovim plugins
+
+- **Git** — gitsigns (inline blame), lazygit, gitgraph (`<leader>gl`), diffview (`<leader>gd`), git-worktree (`<leader>gw`), git-messenger (`<leader>gm`), git-conflict
+- **opencode** — AI coding assistant with render-markdown, restart server with `<leader>or`
+- **yazi.nvim** — file manager in a floating window (`<leader>-`, `<leader>cw`, `<c-up>`)
+- **toggleterm** — floating terminal (`<leader>tf`, `<c-\>`)
+- **UI** — edgy (sidebar windows), aerial (code outline), rainbow-delimiters, indent-blankline, smear-cursor, snacks (picker/terminal), blink.cmp, nvim-colorizer
+- **Testing** — neotest with jest, vitest, and dotnet adapters
 
 ---
 
@@ -189,6 +145,8 @@ Install a [Nerd Font](https://www.nerdfonts.com/) (e.g. JetBrainsMono) for icons
 
 ```text
 dotfiles/
+├── Makefile
+├── setup.sh
 ├── zsh/
 │   └── .zshrc
 ├── tmux/
@@ -210,6 +168,10 @@ dotfiles/
 │           ├── lazyvim.json
 │           ├── lazy-lock.json
 │           ├── stylua.toml
+│           ├── .neoconf.json
+│           ├── .gitignore
+│           ├── README.md
+│           ├── LICENSE
 │           ├── lua/
 │           │   ├── config/
 │           │   │   ├── lazy.lua
@@ -218,15 +180,26 @@ dotfiles/
 │           │   │   └── autocmds.lua
 │           │   └── plugins/
 │           │       ├── aerial.lua
+│           │       ├── blink.lua
 │           │       ├── colors.lua
+│           │       ├── diffview.lua
+│           │       ├── edgy.lua
+│           │       ├── git-conflict.lua
+│           │       ├── git-messenger.lua
+│           │       ├── git-worktree.lua
+│           │       ├── gitgraph.lua
 │           │       ├── gitsigns.lua
 │           │       ├── indent-blankline.lua
-│           │       ├── neogit.lua
+│           │       ├── lazygit.lua
+│           │       ├── lazysql.lua
 │           │       ├── neotest.lua
+│           │       ├── opencode.lua
 │           │       ├── rainbow-delimiters.lua
+│           │       ├── smear-cursor.lua
 │           │       ├── snacks.lua
-│           │       └── ts-config.lua
-│           └── .gitignore
+│           │       ├── toggleterm.lua
+│           │       ├── ts-config.lua
+│           │       └── yazi.nvim.lua
 ├── yazi/
 │   └── .config/
 │       └── yazi/
@@ -349,13 +322,19 @@ yazi --clear-cache
 Remove existing symlinks:
 
 ```bash
-stow -D -t ~ zsh tmux starship nvim yazi lazygit lazysql
+make uninstall
 ```
 
 Recreate them:
 
 ```bash
-stow -t ~ zsh tmux starship nvim yazi lazygit lazysql
+make install
+```
+
+Recreate them (and prune stale symlinks):
+
+```bash
+make restow
 ```
 
 Check where a symlink points:

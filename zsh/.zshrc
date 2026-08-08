@@ -56,10 +56,12 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 
 # opencode
 export PATH="$HOME/.opencode/bin:$PATH"
+
+# local binaries
 export PATH="$HOME/.local/bin:$PATH"
 
-
-# Added by Antigravity CLI installer
-export PATH="/home/tanutchakorn/.local/bin:$PATH"
-export PATH="$HOME/.local/bin/flutter/bin:$PATH"
-export PATH="$HOME/.local/bin:$PATH"
+# Per-machine overrides (gitignored). Put machine-specific PATHs here,
+# e.g. flutter, Antigravity CLI, etc.
+if [[ -f "$HOME/.zshrc.local" ]]; then
+  source "$HOME/.zshrc.local"
+fi

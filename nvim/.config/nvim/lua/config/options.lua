@@ -3,4 +3,6 @@
 -- Add any additional options here
 vim.opt.number = true
 vim.opt.relativenumber = false
-vim.opt.guifont = "MesloLGS Nerd Font Mono"
+if vim.g.neovide or vim.fn.has("gui_running") == 1 then
+  vim.opt.guifont = "MesloLGS Nerd Font Mono"
+end
