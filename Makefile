@@ -1,13 +1,18 @@
 PACKAGES = zsh tmux starship nvim yazi lazygit lazysql
 TARGET   = $(HOME)
+DOTFILES_DIR = $(shell pwd)
 
-.PHONY: install uninstall restow
+.PHONY: install uninstall restow path
 
-install:
+path:
+	mkdir -p $(TARGET)/.config/dotfiles
+	printf 'DOTFILES_DIR="%s"\n' "$(DOTFILES_DIR)" > $(TARGET)/.config/dotfiles/path
+
+install: path
 	stow -t $(TARGET) $(PACKAGES)
 
 uninstall:
 	stow -D -t $(TARGET) $(PACKAGES)
 
-restow:
+restow: path
 	stow -R -t $(TARGET) $(PACKAGES)

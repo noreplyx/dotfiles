@@ -2,7 +2,8 @@
 # Symlink dotfiles-managed plugin overrides into ~/.tmux/plugins/
 # Run this after TPM install/update (prefix+I)
 
-DOTFILES_PLUGINS="$HOME/Codes/dotfiles/tmux/plugins"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOTFILES_PLUGINS="$(cd "$SCRIPT_DIR/.." && pwd)/plugins"
 TMUX_PLUGINS="$HOME/.tmux/plugins"
 
 for plugin_dir in "$DOTFILES_PLUGINS"/*/; do

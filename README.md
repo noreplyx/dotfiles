@@ -21,7 +21,7 @@ cd ~/Codes/dotfiles
 ./setup.sh
 
 # 3. Set Zsh as default shell
-chsh -s /usr/bin/zsh
+chsh -s "$(command -v zsh)"
 
 # 4. Start tmux and press prefix+I to install plugins
 tmux new-session -s init
@@ -32,6 +32,10 @@ exec zsh
 
 `setup.sh` is idempotent and detects Fedora vs macOS (dnf vs brew). Steps that
 require interaction (changing your shell, tmux plugin install) are left manual.
+
+`setup.sh` and `make install` write the repo location to
+`~/.config/dotfiles/path`, which tmux sources to find the plugin-override
+script. This means the repo can live anywhere, not just `~/Codes/dotfiles`.
 
 Per-machine settings (e.g. Flutter, Antigravity CLI paths) go in
 `~/.zshrc.local`, which is sourced automatically and not tracked by git.
@@ -362,3 +366,5 @@ Re-apply plugin overrides:
 ```bash
 bash ~/Codes/dotfiles/tmux/scripts/apply-plugin-overrides.sh
 ```
+
+The script self-locates, so it works from any clone path.

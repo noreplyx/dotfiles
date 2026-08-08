@@ -128,6 +128,12 @@ install_lazysql() {
   esac
 }
 
+write_dotfiles_path() {
+  info "Writing dotfiles path to ~/.config/dotfiles/path"
+  mkdir -p "$HOME/.config/dotfiles"
+  printf 'DOTFILES_DIR="%s"\n' "$DOTFILES_DIR" > "$HOME/.config/dotfiles/path"
+}
+
 stow_packages() {
   if ! command_exists stow; then
     warn "stow not installed; skipping symlinks"
@@ -149,6 +155,7 @@ main() {
   install_yazi_plugins
   install_lazygit "$os"
   install_lazysql "$os"
+  write_dotfiles_path
   stow_packages
 
   printf "\n\033[1;32mDone.\033[0m Remaining manual steps:\n"
