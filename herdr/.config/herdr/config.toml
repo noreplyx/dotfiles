@@ -1,0 +1,7 @@
+onboarding = false
+
+[keys]
+open_worktree = "prefix+shift+o"
+
+[theme]
+name = "tokyo-night"

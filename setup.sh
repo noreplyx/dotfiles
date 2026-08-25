@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PACKAGES="zsh tmux starship nvim yazi lazygit lazysql"
+PACKAGES="zsh tmux starship nvim yazi lazygit lazysql herdr"
 
 info()  { printf "\033[1;34m==>\033[0m %s\n" "$*"; }
 ok()    { printf "\033[1;32m  ok\033[0m %s\n" "$*"; }
@@ -23,11 +23,21 @@ detect_os() {
 
 install_packages() {
   local os="$1"
-  local pkgs=(git stow zsh tmux neovim curl fzf ripgrep fd bat eza zoxide yazi)
+  local pkgs=(git stow zsh tmux neovim curl fzf ripgrep bat eza zoxide yazi)
   local missing=()
   for p in "${pkgs[@]}"; do
     command_exists "$p" || missing+=("$p")
   done
+
+  # fd ships as fd-find on Fedora, fd on macOS
+  if ! command_exists fd; then
+    case "$os" in
+      fedora) missing+=(fd-find) ;;
+      macos)  missing+=(fd) ;;
+      *)      missing+=(fd) ;;
+    esac
+  fi
+
   if [[ ${#missing[@]} -eq 0 ]]; then
     skip "prerequisites already installed"
     return
@@ -112,9 +122,19 @@ install_lazysql() {
   case "$1" in
     fedora)
       info "Installing lazysql"
+      local arch
+      case "$(uname -m)" in
+        x86_64)  arch="x86_64" ;;
+        aarch64|arm64) arch="arm64" ;;
+        i386|i686) arch="i386" ;;
+        *)
+          warn "Unsupported architecture $(uname -m); install lazysql manually"
+          return
+          ;;
+      esac
       mkdir -p "$HOME/.local/bin"
       curl -fsSL -o /tmp/lazysql.tar.gz \
-        https://github.com/jorgerojas26/lazysql/releases/latest/download/lazysql_Linux_x86_64.tar.gz
+        "https://github.com/jorgerojas26/lazysql/releases/latest/download/lazysql_Linux_${arch}.tar.gz"
       tar -xzf /tmp/lazysql.tar.gz -C "$HOME/.local/bin"
       chmod +x "$HOME/.local/bin/lazysql"
       ;;
@@ -128,10 +148,30 @@ install_lazysql() {
   esac
 }
 
+install_herdr() {
+  if command_exists herdr; then
+    skip "herdr already installed"
+    return
+  fi
+  case "$1" in
+    macos)
+      info "Installing herdr via brew"
+      brew install herdr
+      ;;
+    *)
+      info "Installing herdr via installer script"
+      curl -fsSL https://herdr.dev/install.sh | sh
+      ;;
+  esac
+}
+
 write_dotfiles_path() {
   info "Writing dotfiles path to ~/.config/dotfiles/path"
   mkdir -p "$HOME/.config/dotfiles"
-  printf 'DOTFILES_DIR="%s"\n' "$DOTFILES_DIR" > "$HOME/.config/dotfiles/path"
+  {
+    printf 'DOTFILES_DIR="%s"\n' "$DOTFILES_DIR"
+    printf 'CODES_DIR="%s"\n' "${CODES_DIR:-$HOME/Codes}"
+  } > "$HOME/.config/dotfiles/path"
 }
 
 stow_packages() {
@@ -155,6 +195,7 @@ main() {
   install_yazi_plugins
   install_lazygit "$os"
   install_lazysql "$os"
+  install_herdr "$os"
   write_dotfiles_path
   stow_packages
 
@@ -162,6 +203,8 @@ main() {
   printf "  1. chsh -s %s   (set Zsh as default shell)\n" "$(command -v zsh || echo /bin/zsh)"
   printf "  2. tmux new-session -s init   then press prefix+I to install tmux plugins\n"
   printf "  3. exec zsh\n"
+  printf "\nTip: set CODES_DIR=/path/to/projects before running setup.sh to change the\n"
+  printf "     default projects directory (currently %s).\n" "${CODES_DIR:-$HOME/Codes}"
 }
 
 main "$@"

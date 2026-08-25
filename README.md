@@ -37,6 +37,16 @@ require interaction (changing your shell, tmux plugin install) are left manual.
 `~/.config/dotfiles/path`, which tmux sources to find the plugin-override
 script. This means the repo can live anywhere, not just `~/Codes/dotfiles`.
 
+The projects directory defaults to `~/Codes` (used by tmux sessionx and the
+yazi `g c` bookmark). To change it, set `CODES_DIR` before running
+`setup.sh` or `make install`:
+
+```bash
+CODES_DIR=~/Projects ./setup.sh
+# or
+make install CODES_DIR=~/Projects
+```
+
 Per-machine settings (e.g. Flutter, Antigravity CLI paths) go in
 `~/.zshrc.local`, which is sourced automatically and not tracked by git.
 
@@ -81,6 +91,7 @@ stow -t ~ nvim
 - **Yazi** — Terminal file manager with image preview (WezTerm), git status linemode, and plugins: smart-enter, full-border, toggle-pane, jump-to-char, smart-filter, smart-paste, diff, githead, yaziline
 - **LazyGit** — TUI git client with Tokyo Night theme, opened from Neovim with `<leader>gg`
 - **LazySQL** — TUI database client (MySQL, PostgreSQL, SQLite, MSSQL, MongoDB) with configurable connections, opened from Neovim with `<leader>ls`
+- **Herdr** — terminal workspace manager for AI coding agents, with always-running background server, pane state tracking (working/blocked/idle), and agent-native CLI/socket API
 
 ### Neovim plugins
 
@@ -220,6 +231,10 @@ dotfiles/
     └── .config/
         └── lazysql/
             └── config.toml
+└── herdr/
+    └── .config/
+        └── herdr/
+            └── config.toml
 ```
 
 ---
@@ -294,7 +309,7 @@ Installed via `ya pkg` (see `yazi/.config/yazi/package.toml`):
 | `M`        | Maximize/restore preview pane       |
 | `Ctrl-d`   | Diff selected with hovered file     |
 | `g d`      | Cd to ~/Downloads                   |
-| `g c`      | Cd to ~/Codes                       |
+| `g c`      | Cd to projects dir (`$CODES_DIR`)   |
 | `g h`      | Cd to home                          |
 | `g z`      | Cd to ~/.config                     |
 
