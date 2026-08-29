@@ -5,3 +5,9 @@ open_worktree = "prefix+shift+o"
 
 [theme]
 name = "tokyo-night"
+
+[[keys.command]]
+key = "prefix+shift+k"
+type = "shell"
+command = "herdr plugin action invoke open-board --plugin herdr-board"
+description = "open herdr-board kanban (overlay)"

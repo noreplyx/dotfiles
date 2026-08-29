@@ -165,6 +165,21 @@ install_herdr() {
   esac
 }
 
+install_herdr_board() {
+  if ! command_exists herdr; then
+    warn "herdr not found; install herdr-board plugin after installing it"
+    return
+  fi
+  if command_exists board; then
+    skip "herdr-board already installed"
+    return
+  fi
+  info "Installing herdr-board plugin"
+  herdr plugin install nelsonPires5/herdr-board --ref v0.16.1 --yes
+  info "Installing opencode harness integration"
+  herdr integration install opencode
+}
+
 write_dotfiles_path() {
   info "Writing dotfiles path to ~/.config/dotfiles/path"
   mkdir -p "$HOME/.config/dotfiles"
@@ -196,6 +211,7 @@ main() {
   install_lazygit "$os"
   install_lazysql "$os"
   install_herdr "$os"
+  install_herdr_board
   write_dotfiles_path
   stow_packages
 
