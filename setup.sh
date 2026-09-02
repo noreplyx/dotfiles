@@ -180,6 +180,15 @@ install_herdr_board() {
   herdr integration install opencode
 }
 
+install_herdr_auto_title() {
+  if ! command_exists herdr; then
+    warn "herdr not found; install herdr-auto-title plugin after installing it"
+    return
+  fi
+  info "Installing herdr-auto-title plugin"
+  herdr plugin install kryptamine/herdr-auto-title --ref v0.3.2 --yes
+}
+
 write_dotfiles_path() {
   info "Writing dotfiles path to ~/.config/dotfiles/path"
   mkdir -p "$HOME/.config/dotfiles"
@@ -212,6 +221,7 @@ main() {
   install_lazysql "$os"
   install_herdr "$os"
   install_herdr_board
+  install_herdr_auto_title
   write_dotfiles_path
   stow_packages
 
