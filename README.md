@@ -5,7 +5,8 @@ Configuration for my development environment on Fedora Linux and macOS.
 ## How to use this project
 
 This repository uses [GNU Stow](https://www.gnu.org/software/stow/) to manage
-dotfiles as symlinks. Each directory (`zsh/`, `tmux/`, `nvim/`, `starship/`)
+dotfiles as symlinks. Each directory (`zsh/`, `tmux/`, `nvim/`, `starship/`,
+`wezterm/`)
 mirrors the target home directory structure. Running `stow` creates symlinks
 from your home directory back into this repo, so changes are tracked in one
 place.
@@ -129,6 +130,14 @@ sudo dnf install -y \
   yazi
 ```
 
+WezTerm is installed separately through the official Fedora Copr repository:
+
+```bash
+sudo dnf install -y dnf-plugins-core
+sudo dnf copr enable -y wezfurlong/wezterm-nightly
+sudo dnf install -y wezterm
+```
+
 ### macOS
 
 ```bash
@@ -150,6 +159,12 @@ brew install \
   eza \
   zoxide \
   yazi
+```
+
+Install WezTerm through Homebrew's cask repository:
+
+```bash
+brew install --cask wezterm
 ```
 
 Install a [Nerd Font](https://www.nerdfonts.com/) (e.g. JetBrainsMono) for icons in Neovim and Starship.
@@ -227,14 +242,18 @@ dotfiles/
 │   └── .config/
 │       └── lazygit/
 │           └── config.yml
-└── lazysql/
+├── lazysql/
     └── .config/
         └── lazysql/
             └── config.toml
-└── herdr/
+├── herdr/
     └── .config/
         └── herdr/
             └── config.toml
+└── wezterm/
+    └── .config/
+        └── wezterm/
+            └── wezterm.lua
 ```
 
 ---

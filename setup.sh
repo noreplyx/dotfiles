@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PACKAGES="zsh tmux starship nvim yazi lazygit lazysql herdr"
+PACKAGES="zsh tmux starship nvim yazi lazygit lazysql herdr wezterm"
 
 info()  { printf "\033[1;34m==>\033[0m %s\n" "$*"; }
 ok()    { printf "\033[1;32m  ok\033[0m %s\n" "$*"; }
@@ -189,6 +189,29 @@ install_herdr_auto_title() {
   herdr plugin install kryptamine/herdr-auto-title --ref v0.3.2 --yes
 }
 
+install_wezterm() {
+  if command_exists wezterm; then
+    skip "WezTerm already installed"
+    return
+  fi
+
+  case "$1" in
+    fedora)
+      info "Installing WezTerm via Fedora Copr"
+      sudo dnf install -y dnf-plugins-core
+      sudo dnf copr enable -y wezfurlong/wezterm-nightly
+      sudo dnf install -y wezterm
+      ;;
+    macos)
+      info "Installing WezTerm via brew"
+      brew install --cask wezterm
+      ;;
+    *)
+      warn "Install WezTerm manually"
+      ;;
+  esac
+}
+
 write_dotfiles_path() {
   info "Writing dotfiles path to ~/.config/dotfiles/path"
   mkdir -p "$HOME/.config/dotfiles"
@@ -221,6 +244,7 @@ main() {
   install_herdr "$os"
   install_herdr_board
   install_herdr_auto_title
+  install_wezterm "$os"
   write_dotfiles_path
   stow_packages
   install_yazi_plugins
