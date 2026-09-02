@@ -95,7 +95,7 @@ stow -t ~ nvim
 
 ### Neovim plugins
 
-- **Git** — gitsigns (inline blame), lazygit, gitgraph (`<leader>gl`), diffview (`<leader>gd`), git-worktree (`<leader>gw`), git-messenger (`<leader>gm`), git-conflict
+- **Git** — gitsigns (inline blame), lazygit, gitgraph (`<leader>gl`), diffview (`<leader>gd`), git-worktree (`<leader>gw`), git-messenger (`<leader>gm`), GitHub PR creation with Octo (`<leader>gpc`), git-conflict
 - **opencode** — AI coding assistant with render-markdown, restart server with `<leader>or`
 - **yazi.nvim** — file manager in a floating window (`<leader>-`, `<leader>cw`, `<c-up>`)
 - **toggleterm** — floating terminal (`<leader>tf`, `<c-\>`)
