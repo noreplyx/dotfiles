@@ -165,28 +165,13 @@ install_herdr() {
   esac
 }
 
-install_herdr_board() {
+install_herdr_opencode() {
   if ! command_exists herdr; then
-    warn "herdr not found; install herdr-board plugin after installing it"
+    warn "herdr not found; run 'herdr integration install opencode' after installing it"
     return
   fi
-  if command_exists board; then
-    skip "herdr-board already installed"
-    return
-  fi
-  info "Installing herdr-board plugin"
-  herdr plugin install nelsonPires5/herdr-board --ref v0.16.1 --yes
   info "Installing opencode harness integration"
   herdr integration install opencode
-}
-
-install_herdr_auto_title() {
-  if ! command_exists herdr; then
-    warn "herdr not found; install herdr-auto-title plugin after installing it"
-    return
-  fi
-  info "Installing herdr-auto-title plugin"
-  herdr plugin install kryptamine/herdr-auto-title --ref v0.3.2 --yes
 }
 
 install_wezterm() {
@@ -242,8 +227,7 @@ main() {
   install_lazygit "$os"
   install_lazysql "$os"
   install_herdr "$os"
-  install_herdr_board
-  install_herdr_auto_title
+  install_herdr_opencode
   install_wezterm "$os"
   write_dotfiles_path
   stow_packages
