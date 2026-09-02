@@ -14,6 +14,9 @@ prepend_keymap = [
 	{ on = "T", run = "plugin toggle-pane min-preview", desc = "Show or hide the preview pane" },
 	# toggle-pane: maximize/restore preview pane
 	{ on = "M", run = "plugin toggle-pane max-preview", desc = "Maximize or restore the preview pane" },
+	# zoom: enlarge/shrink preview image
+	{ on = "+", run = "plugin zoom 1", desc = "Zoom in hovered file" },
+	{ on = "-", run = "plugin zoom -1", desc = "Zoom out hovered file" },
 	# git: toggle git status linemode
 	{ on = [ "g", "s" ], run = "linemode size", desc = "Show size linemode" },
 	# compress: archive selected files
