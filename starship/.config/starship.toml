@@ -1,6 +1,7 @@
 add_newline = false
 
 format = """
+$time\
 $username\
 $hostname\
 $directory\
@@ -67,3 +68,9 @@ symbol = "docker "
 disabled = false
 format = "[$symbol$status]($style) "
 symbol = "err "
+
+[time]
+disabled = false
+format = "[$time]($style) "
+time_format = "%Y-%m-%d %H:%M:%S"
+style = "bold yellow"
