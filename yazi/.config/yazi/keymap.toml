@@ -16,6 +16,13 @@ prepend_keymap = [
 	{ on = "M", run = "plugin toggle-pane max-preview", desc = "Maximize or restore the preview pane" },
 	# git: toggle git status linemode
 	{ on = [ "g", "s" ], run = "linemode size", desc = "Show size linemode" },
+	# compress: archive selected files
+	{ on = [ "c", "a", "a" ], run = "plugin compress", desc = "Archive selected files" },
+	{ on = [ "c", "a", "l" ], run = "plugin compress -l", desc = "Archive selected files (compression level)" },
+	{ on = [ "c", "a", "7" ], run = "plugin compress 7z", desc = "Archive selected files to 7z" },
+	{ on = [ "c", "a", "z" ], run = "plugin compress zip", desc = "Archive selected files to zip" },
+	# trash: native system trash
+	{ on = [ "g", "t" ], run = "plugin trash", desc = "Go to trash bin" },
 	# bookmarks
 	{ on = [ "g", "d" ], run = "cd ~/Downloads", desc = "Cd to ~/Downloads" },
 	{ on = [ "g", "c" ], run = "cd $CODES_DIR", desc = "Cd to projects dir" },

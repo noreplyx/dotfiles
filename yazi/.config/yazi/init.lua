@@ -12,4 +12,4 @@ require("githead"):setup {
 	branch_borders = "()",
 }
 
-require("yaziline"):setup {}
+require("starship"):setup {}

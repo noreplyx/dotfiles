@@ -216,7 +216,6 @@ main() {
   install_tpm
   install_zinit
   install_starship
-  install_yazi_plugins
   install_lazygit "$os"
   install_lazysql "$os"
   install_herdr "$os"
@@ -224,6 +223,7 @@ main() {
   install_herdr_auto_title
   write_dotfiles_path
   stow_packages
+  install_yazi_plugins
 
   printf "\n\033[1;32mDone.\033[0m Remaining manual steps:\n"
   printf "  1. chsh -s %s   (set Zsh as default shell)\n" "$(command -v zsh || echo /bin/zsh)"
