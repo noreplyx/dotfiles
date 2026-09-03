@@ -171,10 +171,12 @@ tabline.setup({
       close_button,
     },
     tab_inactive = { "index", { "process", padding = { left = 0, right = 1 } } },
-    -- clear tabline's right-side defaults (they duplicate ram/cpu/datetime/battery)
+    -- clear tabline's right-side defaults (they duplicate ram/cpu/battery);
+    -- datetime is re-added on the far right as a live clock (tabline sets
+    -- status_update_interval = 500, so it re-renders every ~0.5s)
     tabline_x = {},
     tabline_y = {},
-    tabline_z = {},
+    tabline_z = { { "datetime", style = "%a %d %b %Y %H:%M:%S" } },
   },
   extensions = {},
 })
