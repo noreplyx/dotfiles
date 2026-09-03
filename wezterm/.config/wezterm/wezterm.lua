@@ -43,6 +43,21 @@ config.keys = {
   { key = "Enter", mods = "ALT", action = wezterm.action.ToggleFullScreen },
 }
 
+-- Armed by the tab-bar ✕ (OnClick). Enter opens wezterm's native close-tab
+-- confirmation dialog, which names the tab being closed by its first pane's
+-- terminal title (NOT the tabline's index+cwd label, so it may be hard to
+-- recognize); Escape cancels; the 4s ActivateKeyTable timeout auto-cancels.
+-- NOTE: the '_mode' suffix is load-bearing — tabline's mode
+-- component only displays/themes keytables named *_mode, AND an unknown
+-- *_mode name crashes tabline's render path without a matching
+-- theme_overrides entry below. Keep the three names in sync.
+config.key_tables = {
+  close_tab_mode = {
+    { key = "Enter", mods = "NONE", action = wezterm.action.CloseCurrentTab { confirm = true } },
+    { key = "Escape", mods = "NONE", action = wezterm.action.PopKeyTable },
+  },
+}
+
 -- Network throughput (rx/tx rate) read from /proc/net/dev. tabline concatenates
 -- component results without guarding nil, so this must always return a string.
 local net_state = nil
@@ -110,9 +125,40 @@ local function network(_window)
   return text
 end
 
+-- Close-tab button for the ACTIVE tab. Click arms the close_tab_mode keytable
+-- (mode chip turns red); Enter confirms via dialog, Esc/timeout cancels. No
+-- one-click close by design. tabline concatenates component results without
+-- guarding nil, so this must return a string on every path (see network note).
+local function close_button(tab)
+  if not tab.is_active then
+    return ""
+  end
+  local glyph = "✕" -- plain U+2715; MesloLGS Nerd Font fallback exists, swap to
+                    -- wezterm.nerdfonts.md_close if this renders thin at 16pt
+  return wezterm.format({
+    { Foreground = { Color = "#f7768e" } }, -- Tokyo Night red (hardcoded like
+                                            -- color_scheme above; revisit on theme change)
+    { Text = " " .. glyph .. " ", OnClick = { ActivateKeyTable = {
+      name = "close_tab_mode", one_shot = true, timeout_milliseconds = 4000,
+      clear_stack = true } } },
+    { Foreground = { Color = "#c0caf5" } }, -- restore Tokyo Night fg before the
+                                            -- separator (belt-and-braces; tabs.lua
+                                            -- re-sets colors anyway)
+  })
+end
+
 tabline.setup({
   options = {
     theme = "Tokyo Night",
+    -- Required by the close_tab_mode keytable name ending in _mode (see the
+    -- key_tables block); provides the red "armed" chip via the mode component.
+    theme_overrides = {
+      close_tab_mode = {
+        a = { fg = "#1a1b26", bg = "#f7768e" },
+        b = { fg = "#f7768e", bg = "#24283b" },
+        c = { fg = "#c0caf5", bg = "#1f2335" },
+      },
+    },
   },
   sections = {
     tabline_a = { "mode" },
@@ -122,6 +168,7 @@ tabline.setup({
       "index",
       { "cwd", padding = { left = 0, right = 1 } },
       { "zoomed", padding = 0 },
+      close_button,
     },
     tab_inactive = { "index", { "process", padding = { left = 0, right = 1 } } },
     -- clear tabline's right-side defaults (they duplicate ram/cpu/datetime/battery)
