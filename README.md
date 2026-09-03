@@ -95,12 +95,13 @@ stow -t ~ nvim
 - **Neovim** — LazyVim-based IDE with TypeScript, .NET, Docker, SQL, testing, debugging, Git integration
 - **Yazi** — Terminal file manager with image preview (WezTerm), git status linemode, and plugins: smart-enter, full-border, toggle-pane, jump-to-char, smart-filter, smart-paste, diff, githead, starship, compress, zoom, rich-preview
 - **LazyGit** — TUI git client with Tokyo Night theme, opened from Neovim with `<leader>gg`
+- **GitHub CLI** — `gh`, installed by `setup.sh` (dnf/brew); powers Octo PR creation. Authenticate once with `gh auth login`; tokens live in `~/.config/gh/hosts.yml` (never committed)
 - **LazySQL** — TUI database client (MySQL, PostgreSQL, SQLite, MSSQL, MongoDB) with configurable connections, opened from Neovim with `<leader>ls`
 - **Herdr** — terminal workspace manager for AI coding agents, with always-running background server, pane state tracking (working/blocked/idle), and agent-native CLI/socket API
 
 ### Neovim plugins
 
-- **Git** — gitsigns (inline blame), lazygit, gitgraph (`<leader>gl`), diffview (`<leader>gd`), git-worktree (`<leader>gw`), git-messenger (`<leader>gm`), GitHub PR creation with Octo (`<leader>gpc`), git-conflict
+- **Git** — gitsigns (inline blame), lazygit, gitgraph (`<leader>gl`), diffview (`<leader>gd`), git-worktree (`<leader>gw`), git-messenger (`<leader>gm`), GitHub PR creation with Octo (`<leader>gpc`, requires `gh` + `gh auth login`), git-conflict
 - **opencode** — AI coding assistant with render-markdown, restart server with `<leader>or`
 - **yazi.nvim** — file manager in a floating window (`<leader>-`, `<leader>cw`, `<c-up>`)
 - **toggleterm** — floating terminal (`<leader>tf`, `<c-\>`)

@@ -214,6 +214,26 @@ install_lazygit() {
   esac
 }
 
+install_gh() {
+  if command_exists gh; then
+    skip "gh already installed"
+    return
+  fi
+  case "$1" in
+    fedora)
+      info "Installing GitHub CLI via dnf"
+      sudo dnf install -y gh
+      ;;
+    macos)
+      info "Installing GitHub CLI via brew"
+      brew install gh
+      ;;
+    *)
+      warn "Install gh manually (https://cli.github.com/)"
+      ;;
+  esac
+}
+
 install_lazysql() {
   if command_exists lazysql; then
     skip "lazysql already installed"
@@ -369,6 +389,7 @@ main() {
   install_zinit
   install_starship
   install_lazygit "$os"
+  install_gh "$os"
   install_lazysql "$os"
   install_herdr "$os"
   install_herdr_opencode
@@ -383,7 +404,8 @@ main() {
   printf "  1. chsh -s %s   (set Zsh as default shell)\n" "$(command -v zsh || echo /bin/zsh)"
   printf "  2. tmux new-session -s init   then press prefix+I to install tmux plugins\n"
   printf "  3. Start wezterm once, then re-run ./setup.sh to pin tabline.wez to the reviewed commit\n"
-  printf "  4. exec zsh\n"
+  printf "  4. gh auth login   (required for Octo PR creation <leader>gpc in Neovim)\n"
+  printf "  5. exec zsh\n"
   printf "\nTip: set CODES_DIR=/path/to/projects before running setup.sh to change the\n"
   printf "     default projects directory (currently %s).\n" "${CODES_DIR:-$HOME/Codes}"
 }
