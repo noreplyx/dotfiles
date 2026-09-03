@@ -27,7 +27,11 @@ chsh -s "$(command -v zsh)"
 # 4. Start tmux and press prefix+I to install plugins
 tmux new-session -s init
 
-# 5. Restart shell
+# 5. Start WezTerm once, then re-run ./setup.sh to pin tabline.wez to the reviewed commit
+wezterm
+./setup.sh
+
+# 6. Restart shell
 exec zsh
 ```
 

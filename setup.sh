@@ -197,6 +197,50 @@ install_wezterm() {
   esac
 }
 
+# tabline.wez is pinned to a reviewed commit; wezterm's plugin.require clones
+# the default branch, so enforce the pin against wezterm's cached clone here.
+pin_tabline_wez() {
+  local PINNED_TABLINE_SHA="6022b9f9ec68c9a4dd50f40ceba3a7b9b9d1684a"  # v1.6.0
+  if ! command_exists git; then
+    warn "git not found; cannot enforce tabline.wez pin"
+    return 0
+  fi
+  local clone found=0
+  # wezterm's plugin cache lives under <DATA_DIR>/wezterm/plugins; DATA_DIR
+  # differs per platform (and the exact macOS path is unverified), so probe all
+  # plausible roots instead of hardcoding one.
+  local roots=(
+    "${XDG_DATA_HOME:-$HOME/.local/share}/wezterm"
+    "$HOME/Library/Application Support/wezterm"
+    "$HOME/Library/Caches/wezterm"
+    "$HOME/.wezterm"
+  )
+  local root
+  for root in "${roots[@]}"; do
+    [[ -d "$root" ]] || continue
+    while IFS= read -r -d '' clone; do
+      found=1
+      if [[ "$(git -C "$clone" rev-parse HEAD 2>/dev/null || true)" == "$PINNED_TABLINE_SHA" ]]; then
+        ok "tabline.wez clone already at reviewed SHA"
+        continue
+      fi
+      info "Forcing tabline.wez clone to reviewed SHA ${PINNED_TABLINE_SHA:0:12}"
+      git -C "$clone" fetch --tags origin >/dev/null 2>&1 || true  # best effort; tolerate no network
+      if git -C "$clone" checkout -q "$PINNED_TABLINE_SHA" >/dev/null 2>&1; then
+        ok "tabline.wez clone pinned to reviewed SHA"
+      else
+        warn "Could not pin tabline.wez clone: $clone"
+        printf '       fix manually: git -C %s fetch --tags origin && git -C %s checkout %s\n' \
+          "$clone" "$clone" "$PINNED_TABLINE_SHA"
+      fi
+    done < <(find "$root" -maxdepth 3 -type d -name '*tabline*wez*' -print0 2>/dev/null)
+  done
+  if [[ $found -eq 0 ]]; then
+    skip "tabline.wez clone not found; it is created on first wezterm start -- re-run setup.sh afterwards to pin it"
+  fi
+  return 0
+}
+
 write_dotfiles_path() {
   info "Writing dotfiles path to ~/.config/dotfiles/path"
   mkdir -p "$HOME/.config/dotfiles"
@@ -229,6 +273,7 @@ main() {
   install_herdr "$os"
   install_herdr_opencode
   install_wezterm "$os"
+  pin_tabline_wez
   write_dotfiles_path
   stow_packages
   install_yazi_plugins
@@ -236,7 +281,8 @@ main() {
   printf "\n\033[1;32mDone.\033[0m Remaining manual steps:\n"
   printf "  1. chsh -s %s   (set Zsh as default shell)\n" "$(command -v zsh || echo /bin/zsh)"
   printf "  2. tmux new-session -s init   then press prefix+I to install tmux plugins\n"
-  printf "  3. exec zsh\n"
+  printf "  3. Start wezterm once, then re-run ./setup.sh to pin tabline.wez to the reviewed commit\n"
+  printf "  4. exec zsh\n"
   printf "\nTip: set CODES_DIR=/path/to/projects before running setup.sh to change the\n"
   printf "     default projects directory (currently %s).\n" "${CODES_DIR:-$HOME/Codes}"
 }
