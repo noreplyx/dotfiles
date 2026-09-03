@@ -58,6 +58,106 @@ install_packages() {
   esac
 }
 
+# Yazi previewers shell out to external CLIs: rich (markdown/CSV/JSON/RST
+# previews via the rich-preview plugin), resvg (SVG), poppler (PDF), ffmpeg
+# (video thumbnails), 7z (archives), jq (JSON metadata), and chafa as the
+# block-art image fallback.
+install_yazi_preview_deps() {
+  local os="$1"
+  local missing=() pair
+
+  case "$os" in
+    macos)
+      # pairs are "command:brew-formula"; brew sevenzip installs 7zz, not 7z
+      for pair in \
+        "resvg:resvg" \
+        "rich:rich-cli" \
+        "chafa:chafa" \
+        "jq:jq" \
+        "pdftotext:poppler" \
+        "ffmpeg:ffmpeg" \
+        "7zz:sevenzip"; do
+        command_exists "${pair%%:*}" || missing+=("${pair##*:}")
+      done
+      if [[ ${#missing[@]} -eq 0 ]]; then
+        skip "yazi preview dependencies already installed"
+      else
+        info "Installing yazi preview dependencies via brew: ${missing[*]}"
+        brew install "${missing[@]}"
+      fi
+      ;;
+    fedora)
+      for pair in \
+        "chafa:chafa" \
+        "jq:jq" \
+        "pdftotext:poppler-utils" \
+        "ffmpeg:ffmpeg" \
+        "7z:7zip"; do
+        command_exists "${pair%%:*}" || missing+=("${pair##*:}")
+      done
+      if [[ ${#missing[@]} -gt 0 ]]; then
+        info "Installing yazi preview dependencies via dnf: ${missing[*]}"
+        # --skip-unavailable: ffmpeg needs RPM Fusion, which is not enabled everywhere
+        sudo dnf install -y --skip-unavailable "${missing[@]}"
+      else
+        skip "dnf-packaged yazi preview dependencies already installed"
+      fi
+      install_resvg
+      install_rich_cli
+      ;;
+    *)
+      warn "Install yazi preview dependencies manually: resvg rich-cli chafa jq poppler ffmpeg 7z"
+      ;;
+  esac
+}
+
+# resvg is not packaged in Fedora repos; upstream ships Linux x86_64 binaries
+install_resvg() {
+  if command_exists resvg; then
+    skip "resvg already installed"
+    return 0
+  fi
+  local arch
+  case "$(uname -m)" in
+    x86_64) arch="x86_64" ;;
+    *)
+      warn "No upstream resvg binary for $(uname -m); yazi SVG preview unavailable"
+      return 0
+      ;;
+  esac
+  info "Installing resvg from upstream GitHub release"
+  mkdir -p "$HOME/.local/bin"
+  if curl -fsSL -o /tmp/resvg.tar.gz \
+      "https://github.com/linebender/resvg/releases/latest/download/resvg-linux-${arch}.tar.gz" &&
+    tar -xzf /tmp/resvg.tar.gz -C "$HOME/.local/bin" &&
+    chmod +x "$HOME/.local/bin/resvg"; then
+    ok "resvg installed to ~/.local/bin (make sure it is on PATH)"
+  else
+    warn "Could not install resvg from upstream; yazi SVG preview unavailable"
+  fi
+  rm -f /tmp/resvg.tar.gz
+  return 0
+}
+
+# rich-cli is not packaged in Fedora repos either; pipx is the recommended route
+install_rich_cli() {
+  if command_exists rich; then
+    skip "rich already installed"
+    return 0
+  fi
+  if ! command_exists pipx && ! sudo dnf install -y python3-pipx; then
+    warn "Could not install pipx; rich-preview will fall back to raw source view"
+    return 0
+  fi
+  info "Installing rich-cli via pipx"
+  if pipx install rich-cli && command_exists rich; then
+    ok "rich installed"
+  else
+    warn "pipx install rich-cli failed or ~/.local/bin is not on PATH; yazi markdown previews fall back to raw source"
+  fi
+  return 0
+}
+
 install_tpm() {
   if [[ -d "$HOME/.tmux/plugins/tpm" ]]; then
     skip "TPM already installed"
@@ -277,6 +377,7 @@ main() {
   write_dotfiles_path
   stow_packages
   install_yazi_plugins
+  install_yazi_preview_deps "$os"
 
   printf "\n\033[1;32mDone.\033[0m Remaining manual steps:\n"
   printf "  1. chsh -s %s   (set Zsh as default shell)\n" "$(command -v zsh || echo /bin/zsh)"

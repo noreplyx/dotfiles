@@ -93,7 +93,7 @@ stow -t ~ nvim
 - **tmux** — TPM with tmux-sensible, tmux-sessionx (fzf session switcher), prefix-highlight. Vim-style pane resize, 72/28 split layout, custom fzf colors.
 - **Starship** — Minimal prompt with directory, git status, and language runtime info
 - **Neovim** — LazyVim-based IDE with TypeScript, .NET, Docker, SQL, testing, debugging, Git integration
-- **Yazi** — Terminal file manager with image preview (WezTerm), git status linemode, and plugins: smart-enter, full-border, toggle-pane, jump-to-char, smart-filter, smart-paste, diff, githead, yaziline
+- **Yazi** — Terminal file manager with image preview (WezTerm), git status linemode, and plugins: smart-enter, full-border, toggle-pane, jump-to-char, smart-filter, smart-paste, diff, githead, starship, compress, zoom, rich-preview
 - **LazyGit** — TUI git client with Tokyo Night theme, opened from Neovim with `<leader>gg`
 - **LazySQL** — TUI database client (MySQL, PostgreSQL, SQLite, MSSQL, MongoDB) with configurable connections, opened from Neovim with `<leader>ls`
 - **Herdr** — terminal workspace manager for AI coding agents, with always-running background server, pane state tracking (working/blocked/idle), and agent-native CLI/socket API
@@ -131,8 +131,21 @@ sudo dnf install -y \
   bat \
   eza \
   zoxide \
-  yazi
+  yazi \
+  chafa \
+  jq \
+  poppler-utils \
+  7zip
 ```
+
+```bash
+# Optional: ffmpeg for yazi video thumbnails (requires RPM Fusion)
+sudo dnf install -y --skip-unavailable ffmpeg
+```
+
+Note: Fedora does not package `resvg` (yazi's SVG renderer) or `rich-cli`
+(yazi's markdown/CSV/JSON renderer); `setup.sh` installs them from upstream
+(resvg GitHub release into `~/.local/bin`, rich-cli via pipx).
 
 WezTerm is installed separately through the official Fedora Copr repository:
 
@@ -162,7 +175,14 @@ brew install \
   bat \
   eza \
   zoxide \
-  yazi
+  yazi \
+  resvg \
+  rich-cli \
+  chafa \
+  jq \
+  poppler \
+  ffmpeg \
+  sevenzip
 ```
 
 Install WezTerm through Homebrew's cask repository:
@@ -319,6 +339,38 @@ Installed via `ya pkg` (see `yazi/.config/yazi/package.toml`):
 - `smart-filter` — continuous filtering, auto-enter unique dir
 - `smart-paste` — paste into hovered directory or CWD
 - `diff` — diff selected with hovered file
+- `githead` — current branch in the status line
+- `starship` — starship prompt segment in the status line
+- `compress` — archive selected files
+- `zoom` — zoom in/out on the previewed image
+- `rich-preview` — rendered markdown/CSV/JSON/RST previews (needs `rich`)
+
+Note: yazi's built-in `d`/`D` already moves files to the native system trash
+(Finder Trash on macOS, `~/.local/share/Trash` on Linux). There is no official
+`trash` plugin (yazi's default `g t` binding references one that does not
+exist upstream, so our keymap overrides it with `noop`).
+
+### Preview dependencies
+
+Yazi's previewers delegate to external CLIs (installed by `setup.sh`):
+
+| File type      | Needs                                |
+| -------------- | ------------------------------------ |
+| Markdown/CSV/JSON/RST | `rich` (rich-preview plugin) |
+| SVG            | `resvg`                              |
+| PNG/JPG images | terminal graphics protocol, else `chafa` |
+| PDF            | `poppler` (`pdftoppm`/`pdftotext`)   |
+| Video          | `ffmpeg`                             |
+| Archives       | `7z`/`7zz`                           |
+
+If the markdown preview shows raw source, `rich` is missing or not on
+PATH. If the SVG preview is blank, `resvg` is missing. If image previews
+look blocky, yazi fell back to Chafa instead of the terminal's graphics
+protocol — run `yazi --debug` inside the exact terminal (and inside
+tmux) and check the `Drivers.matches` line; expect `Iip` for WezTerm,
+`Kgp` for Ghostty/kitty, `Sixel`/`Chafa` otherwise. Under tmux,
+`allow-passthrough on` must be set **and the tmux server restarted**
+(`tmux kill-server`).
 
 ### Keybindings
 
