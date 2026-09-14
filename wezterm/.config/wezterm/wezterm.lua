@@ -30,9 +30,11 @@ config.enable_scroll_bar = false
 config.adjust_window_size_when_changing_font_size = false
 
 local kb_layout_state = { text = " -- " }
-local kb_cache_path = (os.getenv("XDG_RUNTIME_DIR") or "") .. "/wezterm-kb-layout"
-if kb_cache_path == "/wezterm-kb-layout" then
-  kb_cache_path = (os.getenv("HOME") or "") .. "/.cache/wezterm-kb-layout"
+local kb_cache_primary = (os.getenv("XDG_RUNTIME_DIR") or "") .. "/wezterm-kb-layout"
+local kb_cache_fallback = (os.getenv("HOME") or "") .. "/.cache/wezterm-kb-layout"
+local kb_cache_path = kb_cache_primary
+if kb_cache_primary == "/wezterm-kb-layout" then
+  kb_cache_path = kb_cache_fallback
 end
 
 local function kb_pad(code)
@@ -206,6 +208,12 @@ local function kb_layout(window)
     end
   end
   local file = io.open(kb_cache_path, "r")
+  if not file and kb_cache_path ~= kb_cache_fallback then
+    file = io.open(kb_cache_fallback, "r")
+  end
+  if not file then
+    file = io.open("/tmp/wezterm-kb-layout", "r")
+  end
   if file then
     local raw = file:read("*l")
     file:close()
