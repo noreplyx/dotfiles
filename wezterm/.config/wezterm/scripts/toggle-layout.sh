@@ -17,13 +17,29 @@ case "$target" in
 esac
 
 current=""
-if [[ -x "$DETECT" ]]; then
-  current="$("$DETECT" 2>/dev/null || true)"
+if [[ -r "$CACHE" ]]; then
+  current="$(cat "$CACHE" 2>/dev/null | tr -d ' \t\r\n' || true)"
+  case "$current" in EN|en|En) current="EN" ;; TH|th|Th) current="TH" ;; *) current="" ;; esac
+fi
+if [[ -z "$current" && -x "$DETECT" ]]; then
+  current="$(FAST=1 "$DETECT" 2>/dev/null || true)"
   [[ "$current" == "UNKNOWN" ]] && current=""
 fi
 if [[ "$WANT" == "NEXT" ]]; then
   if [[ "$current" == "TH" ]]; then WANT="EN"; else WANT="TH"; fi
 fi
+
+push_want() {
+  local code="$1" tmp b64
+  tmp="$(mktemp "${CACHE}.tmp.XXXXXX" 2>/dev/null)" && { printf '%s' "$code" > "$tmp" 2>/dev/null && mv -f "$tmp" "$CACHE" 2>/dev/null || rm -f "$tmp"; }
+  if command -v wezterm >/dev/null 2>&1; then
+    wezterm cli set-user-var KB "$code" >/dev/null 2>&1 || true
+  fi
+  if command -v base64 >/dev/null 2>&1; then
+    b64="$(printf '%s' "$code" | base64 2>/dev/null | tr -d '\n' || true)"
+    [[ -n "${b64:-}" ]] && { printf '\033]1337;SetUserVar=KB=%s\007' "$b64" > /dev/tty; } 2>/dev/null || true;
+  fi
+}
 
 switch_to() {
   local want="$1"
@@ -105,29 +121,21 @@ switch_to() {
   return 1
 }
 
-switch_to "$WANT" || true
+# Optimistic push: cache + dual user-var push + stdout immediately (no fork
+# beyond cache write/wezterm cli), then heal in background.
+push_want "$WANT"
+printf '%s\n' "$WANT"
 
-# Verify-before-cache (both branches): re-detect after settle, only cache on match
-sleep 0.2 2>/dev/null || true
-code=""
-if [[ -x "$DETECT" ]]; then
-  code="$("$DETECT" 2>/dev/null || true)"
-fi
-if [[ "$code" == "$WANT" && "$code" =~ ^[A-Za-z]{2}$ && "$code" != "UNKNOWN" ]]; then
-  tmp="$(mktemp "${CACHE}.tmp.XXXXXX" 2>/dev/null)" && { printf '%s' "$code" > "$tmp" 2>/dev/null && mv -f "$tmp" "$CACHE" 2>/dev/null || rm -f "$tmp"; }
-elif [[ "$code" =~ ^[A-Za-z]{2}$ && "$code" != "UNKNOWN" ]]; then
-  : # mismatch: leave cache untouched (verify failed)
-else
-  code="$(cat "$CACHE" 2>/dev/null || printf '%s' "$WANT")"
-  [[ "$code" =~ ^[A-Za-z]{2}$ ]] || code="$WANT"
-fi
-
-# Best-effort push to wezterm via user var
-if command -v wezterm >/dev/null 2>&1 && command -v base64 >/dev/null 2>&1; then
-  b64="$(printf '%s' "$code" | base64 2>/dev/null | tr -d '\n' || true)"
-  if [[ -n "${b64:-}" ]]; then
-    wezterm cli set-user-var KB "$code" >/dev/null 2>&1 || true
-    printf '\033]1337;SetUserVar=KB=%s\007' "$b64" > /dev/tty 2>/dev/null || true
+# Background heal: real switch, settle 0.5-0.8s, full detect, correct cache on
+# mismatch (transient mismatch never sticks; failure heals in ~2s).
+(
+  switch_to "$WANT" || true
+  sleep 0.6 2>/dev/null || true
+  code=""
+  if [[ -x "$DETECT" ]]; then
+    code="$("$DETECT" 2>/dev/null || true)"
   fi
-fi
-printf '%s\n' "$code"
+  if [[ "$code" =~ ^[A-Za-z]{2}$ && "$code" != "UNKNOWN" && "$code" != "$WANT" ]]; then
+    push_want "$code"
+  fi
+) >/dev/null 2>&1 & disown 2>/dev/null || true

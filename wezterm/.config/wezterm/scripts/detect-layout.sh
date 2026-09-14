@@ -26,6 +26,49 @@ is_english() {
   return 1
 }
 
+# Fast path: FAST=1 serves cache + cheap backends only (no forks on hit,
+# no slow `defaults`/hyprctl/setxkbmap). Else UNKNOWN exit 2.
+if [[ "${FAST:-0}" == "1" ]]; then
+  _fast_cache="${XDG_RUNTIME_DIR:-/tmp}/wezterm-kb-layout"
+  if [[ -z "${XDG_RUNTIME_DIR:-}" && -d "${HOME}/.cache" ]]; then _fast_cache="${HOME}/.cache/wezterm-kb-layout"; fi
+  if [[ -r "$_fast_cache" ]]; then
+    _c="$(cat "$_fast_cache" 2>/dev/null | tr -d ' \t\r\n' || true)"
+    case "$_c" in
+      EN|en|En|TH|th|Th) printf '%s\n' "$_c" | tr '[:lower:]' '[:upper:]'; exit 0 ;;
+    esac
+  fi
+  if [[ "$(uname -s 2>/dev/null)" == "Darwin" ]]; then
+    if command -v macism >/dev/null 2>&1; then
+      raw="$(macism 2>/dev/null || true)"
+      if [[ -n "$raw" ]]; then
+        if normalize "$raw" >/dev/null; then printf 'TH\n'; exit 0; fi
+        if is_english "$raw"; then printf 'EN\n'; exit 0; fi
+      fi
+    fi
+    if command -v im-select >/dev/null 2>&1; then
+      raw="$(im-select 2>/dev/null || true)"
+      if [[ -n "$raw" ]]; then
+        if normalize "$raw" >/dev/null; then printf 'TH\n'; exit 0; fi
+        if is_english "$raw"; then printf 'EN\n'; exit 0; fi
+      fi
+    fi
+    printf 'UNKNOWN\n'; exit 2
+  fi
+  if command -v gsettings >/dev/null 2>&1; then
+    mru="$(gsettings get org.gnome.desktop.input-sources mru-sources 2>/dev/null || true)"
+    if [[ -n "${mru:-}" ]]; then
+      if normalize "$mru" >/dev/null; then
+        us_pos="${mru%%us*}"; th_pos="${mru%%th*}"
+        if [[ "$mru" != *"us"* ]] || (( ${#th_pos} < ${#us_pos} )); then printf 'TH\n'; exit 0; fi
+        printf 'EN\n'; exit 0
+      elif is_english "$mru"; then
+        printf 'EN\n'; exit 0
+      fi
+    fi
+  fi
+  printf 'UNKNOWN\n'; exit 2
+fi
+
 # 0. macOS (Darwin): macism -> im-select -> defaults HIToolbox
 if [[ "$(uname -s 2>/dev/null)" == "Darwin" ]]; then
   if command -v macism >/dev/null 2>&1; then

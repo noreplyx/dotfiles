@@ -59,24 +59,19 @@ local kb_toggle_script = (os.getenv("HOME") or "") .. "/.config/wezterm/scripts/
 
 wezterm.on("kb-toggle-layout", function(window, _pane)
   local before = kb_layout_state.text:match("%a%a") or "??"
-  local ok, _, stderr = wezterm.run_child_process({ kb_toggle_script, "--toggle" })
-  local after = before
-  local file = io.open(kb_cache_path, "r")
-  if file then
-    local raw = file:read("*l")
-    file:close()
-    local code = raw and raw:match("^%s*(%a%a)%s*$")
-    if code then
-      after = code:upper()
-      kb_layout_state.text = kb_pad(after)
-    end
+  local after = "TH"
+  if before == "TH" then
+    after = "EN"
+  elseif before == "EN" then
+    after = "TH"
   end
+  kb_layout_state.text = kb_pad(after)
   if window then
     pcall(function() window:toast_notification("Keyboard layout", before .. " → " .. after, nil, 1500) end)
   end
-  if not ok then
-    wezterm.log_error("kb-toggle-layout failed: " .. tostring(stderr))
-  end
+  pcall(function()
+    os.execute("'" .. kb_toggle_script:gsub("'", "'\\''") .. "' --toggle >/dev/null 2>&1 &")
+  end)
 end)
 
 wezterm.on("gui-startup", function()

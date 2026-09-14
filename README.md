@@ -326,14 +326,23 @@ Live layout segment in the tabline (`tabline_y`), kept as last-good or
 - `wezterm/.config/wezterm/scripts/detect-layout.sh` — prints `EN`/`TH`
   (`UNKNOWN`, exit 2 when indeterminable); backend order
   gsettings → ibus → hyprctl → fcitx5-remote → setxkbmap.
+  `FAST=1` fast-path serves the cache + cheap backends only (no slow
+  `defaults`/hyprctl/setxkbmap forks); on macOS `FAST=1` never calls
+  `defaults read`.
 - `wezterm/.config/wezterm/scripts/toggle-layout.sh [--next|--toggle|EN|TH]` —
-  switches via hyprctl → fcitx5 → ibus → gsettings → setxkbmap, then
-  re-detects and atomically rewrites `~/.cache/wezterm-kb-layout`.
+  switches via hyprctl → fcitx5 → ibus → gsettings → setxkbmap.
+  Optimistic: resolves WANT from cache/`FAST=1`, atomically writes the
+  cache + dual-pushes the user var + prints immediately, then heals in a
+  detached background job (switch, settle ~0.6s, full detect, correct on
+  mismatch so a failed switch heals in ~2s and never sticks).
 - `wezterm/.config/wezterm/scripts/kb-layout-watch.sh` (+ user systemd unit
   `kb-layout-watch.service`, enabled by `setup.sh`) — blocking
-  `gsettings monitor`, no polling, negligible idle CPU.
-- Toggle from WezTerm: `CTRL+SHIFT+SPACE` (fallback `ALT+SHIFT+L`) with a
-  toast (`EN → TH`); `.zshrc` precmd republishes via `detect-layout.sh`.
+  `gsettings monitor`, no polling, negligible idle CPU (macOS: 5s poll,
+  ~12 forks/min max).
+- Toggle from WezTerm: `CTRL+SHIFT+SPACE` (fallback `ALT+SHIFT+L`) —
+  non-blocking handler flips state + toast instantly and fires the toggle
+  script detached (fire-and-forget); `.zshrc` precmd only re-emits the
+  cache (zero forks).
 - Daemon absence is graceful (cache + user-var fallback still render).
 
 ### Layout
