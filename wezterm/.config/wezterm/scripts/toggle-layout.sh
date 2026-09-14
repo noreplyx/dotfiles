@@ -108,20 +108,43 @@ switch_to() {
       [[ -n "$sel" ]] && printf '%s' "$sel" > "$sel_cache" 2>/dev/null || true
     fi
     if [[ -n "$sel" ]]; then
+      _darwin_ids_for() {
+        local w="$1" out=""
+        if [[ "$sel" == "macism" ]]; then
+          out="$(macism list 2>/dev/null || true)"
+        fi
+        if [[ -z "$out" ]]; then
+          out="$(defaults read com.apple.HIToolbox AppleInputSourceHistory 2>/dev/null || true)"
+          [[ -z "$out" ]] && out="$(defaults read com.apple.HIToolbox AppleEnabledInputSources 2>/dev/null || true)"
+        fi
+        if [[ "$w" == "TH" ]]; then
+          printf '%s\n' "$out" | grep -Eo 'com\.apple\.keylayout\.[A-Za-z0-9_-]+|[A-Za-z]*Thai[A-Za-z]*' 2>/dev/null | head -n5 || true
+          printf 'com.apple.keylayout.Thai\nThai\ncom.apple.keylayout.ThaiKedmanee\n'
+        else
+          printf '%s\n' "$out" | grep -Eo 'com\.apple\.keylayout\.[A-Za-z0-9_-]+|ABC|US' 2>/dev/null | grep -Ei 'abc|^us$|\.us' | head -n5 || true
+          printf 'com.apple.keylayout.ABC\ncom.apple.keylayout.US\ncom.apple.keylayout.USInternational\nABC\nUS\n'
+        fi
+      }
       if [[ -z "$id_en" || -z "$id_th" ]]; then
         if [[ "$want" == "TH" ]]; then
-          for _id in com.apple.keylayout.Thai Thai; do
-            "$sel" "$_id" >/dev/null 2>&1 && { id_th="$_id"; break; }
-          done
+          while IFS= read -r _id; do
+            [[ -z "$_id" ]] && continue
+            "$sel" "$_id" >/dev/null 2>&1 && _verify_want "$want" && { id_th="$_id"; break; }
+          done < <(_darwin_ids_for TH)
           id_en="${id_en:-com.apple.keylayout.ABC}"
         else
-          for _id in com.apple.keylayout.ABC com.apple.keylayout.US ABC US; do
-            "$sel" "$_id" >/dev/null 2>&1 && { id_en="$_id"; break; }
-          done
+          while IFS= read -r _id; do
+            [[ -z "$_id" ]] && continue
+            "$sel" "$_id" >/dev/null 2>&1 && _verify_want "$want" && { id_en="$_id"; break; }
+          done < <(_darwin_ids_for EN)
           id_th="${id_th:-com.apple.keylayout.Thai}"
         fi
-        { printf '%s\n%s\n' "$id_en" "$id_th" > "$id_cache"; } 2>/dev/null || true
-        _verify_want "$want" && return 0
+        # Cache only the verified working ID; drop cache when verify failed.
+        if _verify_want "$want"; then
+          { printf '%s\n%s\n' "$id_en" "$id_th" > "$id_cache"; } 2>/dev/null || true
+          push_want "$want"
+          return 0
+        fi
         rm -f "$id_cache" 2>/dev/null || true
         return 1
       fi
@@ -208,5 +231,5 @@ printf '%s\n' "$WANT"
       code="$(printf '%s' "$code" | tr -d ' \t\r\n' || true)"
     fi
   fi
-  case "$code" in EN|TH) [[ "$code" != "$WANT" ]] && push_want "$code" ;; esac
+  case "$code" in EN|TH) [[ "$code" != "$WANT" ]] && push_want "$code" ;; *) [[ "$sw_rc" != "0" ]] && rm -f "$CACHE" 2>/dev/null || true ;; esac
 ) >/dev/null 2>&1 & disown 2>/dev/null || true

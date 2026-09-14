@@ -5,6 +5,8 @@ _OS="$(uname -s 2>/dev/null || true)"
 _KB_DIR="${XDG_RUNTIME_DIR:-/tmp}"
 if [[ -z "${XDG_RUNTIME_DIR:-}" && -d "${HOME}/.cache" ]]; then _KB_DIR="${HOME}/.cache"; fi
 _SEL_CACHE="${_KB_DIR}/wezterm-kb-selector"
+_dbg() { [[ "${KB_DEBUG:-0}" == "1" ]] && printf 'detect: %s\n' "$*" >&2 || true; }
+
 _cached_sel() {
   local s="${IM_SELECTOR:-}"
   if [[ -z "$s" && -r "$_SEL_CACHE" ]]; then
@@ -17,6 +19,7 @@ _try_sel() {
   local sel="$1" raw=""
   [[ -z "$sel" ]] && return 1
   raw="$("$sel" 2>/dev/null || true)"
+  _dbg "sel=$sel raw=${raw:-<empty>}"
   [[ -z "$raw" ]] && return 1
   if normalize "$raw" >/dev/null; then printf 'TH\n'; return 0; fi
   if is_english "$raw"; then printf 'EN\n'; return 0; fi
@@ -41,7 +44,8 @@ is_english() {
   local s="${1:-}"
   s="$(printf '%s' "$s" | tr '[:upper:]' '[:lower:]')"
   case "$s" in
-    *com.apple.keylayout.abc*|*abc*) printf '%s' "$s" | grep -Eq 'abc|us|english' && return 0 ;;
+    *usinternational*|*us_international*|*us-international*) return 0 ;;
+    *com.apple.keylayout.abc*|*com.apple.keylayout.us*|*abc*|*us*) printf '%s' "$s" | grep -Eq 'abc|us|english|usinternational' && return 0 ;;
   esac
   printf '%s' "$s" | grep -Eq 'us|english|xkb:us|us\+|us,|\(us\)' && return 0
   return 1
@@ -102,6 +106,7 @@ if [[ "$_OS" == "Darwin" ]]; then
   fi
   if command -v macism >/dev/null 2>&1; then
     raw="$(macism 2>/dev/null || true)"
+    _dbg "macism raw=${raw:-<empty>}"
     if [[ -n "$raw" ]]; then
       if normalize "$raw" >/dev/null; then printf 'TH\n'; exit 0; fi
       if is_english "$raw"; then printf 'EN\n'; exit 0; fi
@@ -109,15 +114,19 @@ if [[ "$_OS" == "Darwin" ]]; then
   fi
   if command -v im-select >/dev/null 2>&1; then
     raw="$(im-select 2>/dev/null || true)"
+    _dbg "im-select raw=${raw:-<empty>}"
     if [[ -n "$raw" ]]; then
       if normalize "$raw" >/dev/null; then printf 'TH\n'; exit 0; fi
       if is_english "$raw"; then printf 'EN\n'; exit 0; fi
     fi
   fi
   raw=""
-  if [[ "${KB_ALLOW_DEFAULTS:-0}" == "1" ]]; then
+  # Read-only detect defaults to ON; opt out with KB_ALLOW_DEFAULTS=0.
+  # FAST path above always skips defaults (CPU).
+  if [[ "${KB_ALLOW_DEFAULTS:-1}" == "1" ]]; then
     raw="$(defaults read com.apple.HIToolbox AppleSelectedInputSources 2>/dev/null || true)"
   fi
+  _dbg "defaults raw=${raw:-<empty>}"
   if [[ -n "$raw" ]]; then
     if normalize "$raw" >/dev/null; then printf 'TH\n'; exit 0; fi
     if is_english "$raw"; then printf 'EN\n'; exit 0; fi
