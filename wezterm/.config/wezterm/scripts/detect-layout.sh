@@ -1,6 +1,27 @@
 #!/usr/bin/env bash
 # Detect current keyboard layout, print EN/TH. Exit 2 + UNKNOWN if indeterminable.
 set -uo pipefail
+_OS="$(uname -s 2>/dev/null || true)"
+_KB_DIR="${XDG_RUNTIME_DIR:-/tmp}"
+if [[ -z "${XDG_RUNTIME_DIR:-}" && -d "${HOME}/.cache" ]]; then _KB_DIR="${HOME}/.cache"; fi
+_SEL_CACHE="${_KB_DIR}/wezterm-kb-selector"
+_cached_sel() {
+  local s="${IM_SELECTOR:-}"
+  if [[ -z "$s" && -r "$_SEL_CACHE" ]]; then
+    s="$(cat "$_SEL_CACHE" 2>/dev/null | tr -d ' \t\r\n' || true)"
+  fi
+  case "${s##*/}" in macism|im-select) printf '%s' "${s##*/}" ;; *) printf '' ;; esac
+}
+
+_try_sel() {
+  local sel="$1" raw=""
+  [[ -z "$sel" ]] && return 1
+  raw="$("$sel" 2>/dev/null || true)"
+  [[ -z "$raw" ]] && return 1
+  if normalize "$raw" >/dev/null; then printf 'TH\n'; return 0; fi
+  if is_english "$raw"; then printf 'EN\n'; return 0; fi
+  return 1
+}
 
 normalize() {
   local s="${1:-}"
@@ -37,7 +58,11 @@ if [[ "${FAST:-0}" == "1" ]]; then
       EN|en|En|TH|th|Th) printf '%s\n' "$_c" | tr '[:lower:]' '[:upper:]'; exit 0 ;;
     esac
   fi
-  if [[ "$(uname -s 2>/dev/null)" == "Darwin" ]]; then
+  if [[ "$_OS" == "Darwin" ]]; then
+    _cs="$(_cached_sel)"
+    if [[ -n "$_cs" ]]; then
+      if _try_sel "$_cs"; then exit 0; fi
+    fi
     if command -v macism >/dev/null 2>&1; then
       raw="$(macism 2>/dev/null || true)"
       if [[ -n "$raw" ]]; then
@@ -70,7 +95,11 @@ if [[ "${FAST:-0}" == "1" ]]; then
 fi
 
 # 0. macOS (Darwin): macism -> im-select -> defaults HIToolbox
-if [[ "$(uname -s 2>/dev/null)" == "Darwin" ]]; then
+if [[ "$_OS" == "Darwin" ]]; then
+  _cs="$(_cached_sel)"
+  if [[ -n "$_cs" ]]; then
+    if _try_sel "$_cs"; then exit 0; fi
+  fi
   if command -v macism >/dev/null 2>&1; then
     raw="$(macism 2>/dev/null || true)"
     if [[ -n "$raw" ]]; then
@@ -85,7 +114,10 @@ if [[ "$(uname -s 2>/dev/null)" == "Darwin" ]]; then
       if is_english "$raw"; then printf 'EN\n'; exit 0; fi
     fi
   fi
-  raw="$(defaults read com.apple.HIToolbox AppleSelectedInputSources 2>/dev/null || true)"
+  raw=""
+  if [[ "${KB_ALLOW_DEFAULTS:-0}" == "1" ]]; then
+    raw="$(defaults read com.apple.HIToolbox AppleSelectedInputSources 2>/dev/null || true)"
+  fi
   if [[ -n "$raw" ]]; then
     if normalize "$raw" >/dev/null; then printf 'TH\n'; exit 0; fi
     if is_english "$raw"; then printf 'EN\n'; exit 0; fi

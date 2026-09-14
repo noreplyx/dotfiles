@@ -7,6 +7,7 @@ _KB_DIR="${XDG_RUNTIME_DIR:-/tmp}"
 if [[ -z "${XDG_RUNTIME_DIR:-}" && -d "${HOME}/.cache" ]]; then _KB_DIR="${HOME}/.cache"; fi
 command mkdir -p "$_KB_DIR" 2>/dev/null || { _KB_DIR="/tmp"; command mkdir -p "$_KB_DIR" 2>/dev/null || true; }
 CACHE="${_KB_DIR}/wezterm-kb-layout"
+_OS="$(uname -s 2>/dev/null || true)"
 
 target="${1:---toggle}"
 case "$target" in
@@ -32,8 +33,11 @@ fi
 push_want() {
   local code="$1" tmp b64
   tmp="$(mktemp "${CACHE}.tmp.XXXXXX" 2>/dev/null)" && { printf '%s' "$code" > "$tmp" 2>/dev/null && mv -f "$tmp" "$CACHE" 2>/dev/null || rm -f "$tmp"; }
-  if command -v wezterm >/dev/null 2>&1; then
-    wezterm cli set-user-var KB "$code" >/dev/null 2>&1 || true
+  # Darwin: skip `wezterm cli` (extra fork + socket round-trip); OSC+cache is enough.
+  if [[ "$_OS" != "Darwin" ]]; then
+    if command -v wezterm >/dev/null 2>&1; then
+      wezterm cli set-user-var KB "$code" >/dev/null 2>&1 || true
+    fi
   fi
   if command -v base64 >/dev/null 2>&1; then
     b64="$(printf '%s' "$code" | base64 2>/dev/null | tr -d '\n' || true)"
@@ -45,27 +49,65 @@ switch_to() {
   local want="$1"
   local lwant
   lwant="$(printf '%s' "$want" | tr '[:upper:]' '[:lower:]')"
-  # macOS (Darwin): switch via $IM_SELECTOR (macism preferred, im-select fallback)
-  if [[ "$(uname -s 2>/dev/null)" == "Darwin" ]]; then
-    local sel="${IM_SELECTOR:-}"
+  # macOS (Darwin): switch via cached $IM_SELECTOR (macism preferred, im-select
+  # fallback) and cached input IDs: single fork per switch after first resolve.
+  if [[ "$_OS" == "Darwin" ]]; then
+    local sel="${IM_SELECTOR:-}" sel_cache="${_KB_DIR}/wezterm-kb-selector"
+    local id_cache="${_KB_DIR}/wezterm-kb-ids"
+    local sel_from_cache="" warm=0
+    if [[ -z "$sel" && -r "$sel_cache" ]]; then
+      sel="$(cat "$sel_cache" 2>/dev/null | tr -d ' \t\r\n' || true)"
+      [[ -n "$sel" ]] && sel_from_cache=1
+    fi
     case "${sel##*/}" in
       "" ) : ;;
       macism|im-select) sel="${sel##*/}" ;;
-      *) sel="" ;;
+      *) sel=""; sel_from_cache="" ;;
     esac
+    local id_en="" id_th=""
+    if [[ -r "$id_cache" ]]; then
+      id_en="$(sed -n '1p' "$id_cache" 2>/dev/null | tr -d '\r\n' || true)"
+      id_th="$(sed -n '2p' "$id_cache" 2>/dev/null | tr -d '\r\n' || true)"
+    fi
+    if [[ -n "$sel_from_cache" && -n "$id_en" && -n "$id_th" ]]; then warm=1; fi
+    if [[ "$warm" == "1" ]]; then
+      if [[ "$want" == "TH" ]]; then
+        "$sel" "$id_th" >/dev/null 2>&1 && return 0
+      else
+        "$sel" "$id_en" >/dev/null 2>&1 && return 0
+      fi
+      sel=""; sel_from_cache=""
+    fi
     if [[ -z "$sel" ]]; then
       if command -v macism >/dev/null 2>&1; then sel="macism";
       elif command -v im-select >/dev/null 2>&1; then sel="im-select"; fi
+      [[ -n "$sel" ]] && printf '%s' "$sel" > "$sel_cache" 2>/dev/null || true
+    elif [[ -z "$sel_from_cache" ]] && ! command -v "$sel" >/dev/null 2>&1; then
+      sel=""
+      if command -v macism >/dev/null 2>&1; then sel="macism";
+      elif command -v im-select >/dev/null 2>&1; then sel="im-select"; fi
+      [[ -n "$sel" ]] && printf '%s' "$sel" > "$sel_cache" 2>/dev/null || true
     fi
-    if [[ -n "$sel" ]] && command -v "$sel" >/dev/null 2>&1; then
+    if [[ -n "$sel" ]]; then
+      if [[ -z "$id_en" || -z "$id_th" ]]; then
+        if [[ "$want" == "TH" ]]; then
+          for _id in com.apple.keylayout.Thai Thai; do
+            "$sel" "$_id" >/dev/null 2>&1 && { id_th="$_id"; break; }
+          done
+          id_en="${id_en:-com.apple.keylayout.ABC}"
+        else
+          for _id in com.apple.keylayout.ABC com.apple.keylayout.US ABC US; do
+            "$sel" "$_id" >/dev/null 2>&1 && { id_en="$_id"; break; }
+          done
+          id_th="${id_th:-com.apple.keylayout.Thai}"
+        fi
+        { printf '%s\n%s\n' "$id_en" "$id_th" > "$id_cache"; } 2>/dev/null || true
+        return 0
+      fi
       if [[ "$want" == "TH" ]]; then
-        "$sel" com.apple.keylayout.Thai >/dev/null 2>&1 && return 0
-        "$sel" Thai >/dev/null 2>&1 && return 0
+        "$sel" "$id_th" >/dev/null 2>&1 && return 0
       else
-        "$sel" com.apple.keylayout.ABC >/dev/null 2>&1 && return 0
-        "$sel" com.apple.keylayout.US >/dev/null 2>&1 && return 0
-        "$sel" ABC >/dev/null 2>&1 && return 0
-        "$sel" US >/dev/null 2>&1 && return 0
+        "$sel" "$id_en" >/dev/null 2>&1 && return 0
       fi
     fi
     return 1

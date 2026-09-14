@@ -70,7 +70,7 @@ wezterm.on("kb-toggle-layout", function(window, _pane)
     pcall(function() window:toast_notification("Keyboard layout", before .. " → " .. after, nil, 1500) end)
   end
   pcall(function()
-    os.execute("'" .. kb_toggle_script:gsub("'", "'\\''") .. "' --toggle >/dev/null 2>&1 &")
+    wezterm.run_child_process({ "bash", kb_toggle_script, "--toggle" })
   end)
 end)
 
