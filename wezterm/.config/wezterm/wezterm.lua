@@ -30,16 +30,26 @@ config.enable_scroll_bar = false
 config.adjust_window_size_when_changing_font_size = false
 
 local kb_layout_state = { text = " -- " }
-local kb_cache_primary = (os.getenv("XDG_RUNTIME_DIR") or "") .. "/wezterm-kb-layout"
-local kb_cache_fallback = (os.getenv("HOME") or "") .. "/.cache/wezterm-kb-layout"
+local kb_cache_primary = (os.getenv("HOME") or "") .. "/.cache/wezterm-kb-layout"
+local kb_cache_fallback = (os.getenv("XDG_RUNTIME_DIR") or "") .. "/wezterm-kb-layout"
 local kb_cache_path = kb_cache_primary
-if kb_cache_primary == "/wezterm-kb-layout" then
+if kb_cache_primary == "/.cache/wezterm-kb-layout" then
   kb_cache_path = kb_cache_fallback
 end
 
 local function kb_pad(code)
   code = code:upper():sub(1, 2)
   return " " .. code .. " "
+end
+
+local function kb_format(code)
+  if code == "TH" then
+    return wezterm.format({
+      { Foreground = { Color = "#7dcfff" } },
+      { Text = kb_pad(code) },
+    })
+  end
+  return wezterm.format({ { Text = kb_pad(code) } })
 end
 
 config.keys = {
@@ -63,6 +73,11 @@ config.keys = {
 local kb_toggle_script = (os.getenv("HOME") or "") .. "/.config/wezterm/scripts/toggle-layout.sh"
 
 wezterm.on("kb-toggle-layout", function(window, _pane)
+  -- Instant path: flip Lua state + toast FIRST (keypress→pixels, no waits),
+  -- force an immediate status re-render, then hand the explicit target to
+  -- toggle-layout.sh LAST (fire-and-forget). Explicit EN/TH avoids the
+  -- stale-EN race where --toggle re-detects the pre-switch layout and flips
+  -- back. Background script heals cache/OSC.
   local before = kb_layout_state.text:match("%a%a") or "??"
   local after = "TH"
   if before == "TH" then
@@ -73,9 +88,12 @@ wezterm.on("kb-toggle-layout", function(window, _pane)
   kb_layout_state.text = kb_pad(after)
   if window then
     pcall(function() window:toast_notification("Keyboard layout", before .. " → " .. after, nil, 1500) end)
+    -- Nudge tabline to re-render now instead of waiting for its ~1s
+    -- status_update_interval tick; harmless no-op if unsupported.
+    pcall(function() window:set_config_overrides(window:get_config_overrides() or {}) end)
   end
   pcall(function()
-    wezterm.run_child_process({ "bash", kb_toggle_script, "--toggle" })
+    wezterm.run_child_process({ "bash", kb_toggle_script, after })
   end)
 end)
 
@@ -102,7 +120,8 @@ config.key_tables = {
 }
 
 -- Network throughput (rx/tx rate) read from /proc/net/dev. tabline concatenates
--- component results without guarding nil, so this must always return a string.
+-- component results without guarding nil, so this must always return
+-- wezterm.format cells (never nil).
 local net_state = nil
 
 local function fmt_rate(bps)
@@ -122,12 +141,12 @@ end
 local function network(_window)
   local file = io.open("/proc/net/dev")
   if not file then
-    return "n/a"
+    return wezterm.format({ { Text = "n/a" } })
   end
   local data = file:read("a")
   file:close()
   if not data then
-    return "n/a"
+    return wezterm.format({ { Text = "n/a" } })
   end
   local rx, tx = 0, 0
   for line in data:gmatch("[^\n]+") do
@@ -151,10 +170,10 @@ local function network(_window)
   local now = os.time()
   if not net_state then
     net_state = { rx = rx, tx = tx, t = now, text = " -- " }
-    return net_state.text
+    return wezterm.format({ { Text = net_state.text } })
   end
   if now <= net_state.t then
-    return net_state.text
+    return wezterm.format({ { Text = net_state.text } })
   end
   local dt = math.max(1, now - net_state.t)
   -- dt >= 1 (zero/negative clock steps return cached text; dt clamped anyway);
@@ -165,16 +184,16 @@ local function network(_window)
     fmt_rate(math.max(0, tx - net_state.tx) / dt)
   )
   net_state = { rx = rx, tx = tx, t = now, text = text }
-  return text
+  return wezterm.format({ { Text = text } })
 end
 
 -- Close-tab button for the ACTIVE tab. Click arms the close_tab_mode keytable
 -- (mode chip turns red); Enter confirms via dialog, Esc/timeout cancels. No
 -- one-click close by design. tabline concatenates component results without
--- guarding nil, so this must return a string on every path (see network note).
+-- guarding nil, so this must return wezterm.format cells on every path (see network note).
 local function close_button(tab)
   if not tab.is_active then
-    return ""
+    return wezterm.format({ { Text = "" } })
   end
   local glyph = "✕" -- plain U+2715; MesloLGS Nerd Font fallback exists, swap to
                     -- wezterm.nerdfonts.md_close if this renders thin at 16pt
@@ -190,26 +209,21 @@ local function close_button(tab)
   })
 end
 
--- _window is the tabline component signature (window, tab). Push path first:
--- the zsh publisher emits OSC 1337 SetUserVar KB=<base64> on every switch, so
--- window:user_vars().KB reflects instantly (even mid-line, no precmd/poll).
--- File cache is the fallback (TTL 0: read on every render, no throttling).
+-- _window is the tabline component signature (window, tab). File cache first:
+-- the watch daemon owns cache writes on every external switch (~0.15s) but
+-- emits no OSC (no tty), while user_vars.KB goes stale mid-line (precmd only
+-- re-emits on Enter). Push-first ordering let a stale EN user_var shadow a
+-- fresh TH cache file, sticking on EN until the next prompt. Cache-first
+-- heals within one 1s tick; user_vars stays the fallback/nudge path.
 -- Keeps last-known-good (initial " -- ", never a fake default). Always
--- returns a string; tabline concatenates without nil guards.
+-- returns wezterm.format cells; tabline concatenates without nil guards.
 local function kb_layout(window)
-  if window then
-    local ok, vars = pcall(function() return window:user_vars() end)
-    if ok and vars and vars.KB then
-      local code = tostring(vars.KB):match("^%s*(%a%a)%s*$")
-      if code then
-        kb_layout_state.text = kb_pad(code)
-        return kb_layout_state.text
-      end
-    end
-  end
   local file = io.open(kb_cache_path, "r")
   if not file and kb_cache_path ~= kb_cache_fallback then
     file = io.open(kb_cache_fallback, "r")
+  end
+  if not file then
+    file = io.open((os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/wezterm-kb-layout", "r")
   end
   if not file then
     file = io.open("/tmp/wezterm-kb-layout", "r")
@@ -219,10 +233,31 @@ local function kb_layout(window)
     file:close()
     local code = raw and raw:match("^%s*(%a%a)%s*$")
     if code then
-      kb_layout_state.text = kb_pad(code)
+      code = code:upper()
+      if code == "EN" or code == "TH" then
+        kb_layout_state.text = kb_pad(code)
+        return kb_format(code)
+      end
     end
   end
-  return kb_layout_state.text
+  if window then
+    local ok, vars = pcall(function() return window:user_vars() end)
+    if ok and vars and vars.KB then
+      local code = tostring(vars.KB):match("^%s*(%a%a)%s*$")
+      if code then
+        code = code:upper()
+        if code == "EN" or code == "TH" then
+          kb_layout_state.text = kb_pad(code)
+          return kb_format(code)
+        end
+      end
+    end
+  end
+  local last = kb_layout_state.text:match("%a%a")
+  if last == "TH" or last == "EN" then
+    return kb_format(last)
+  end
+  return wezterm.format({ { Text = kb_layout_state.text } })
 end
 
 tabline.setup({
@@ -251,15 +286,46 @@ tabline.setup({
     tab_inactive = { "index", { "process", padding = { left = 0, right = 1 } } },
     -- clear tabline's right-side defaults (they duplicate ram/cpu/battery);
     -- datetime is re-added on the far right as a live clock (tabline sets
-    -- status_update_interval = 500, so it re-renders every ~0.5s)
+    -- status_update_interval = 1, so it re-renders every ~1s)
     tabline_x = {},
     tabline_y = { kb_layout },
     tabline_z = { { "datetime", style = "%a %d %b %Y %H:%M:%S" } },
   },
-  extensions = {},
 })
 
 tabline.apply_to_config(config)
+
+-- Force frequent re-render so kb_layout (fresh file read every call, no
+-- stale upvalue) reflects cache changes within ~1s. tabline sets this
+-- itself, but re-assert after apply_to_config in case of version drift.
+-- NOTE: must stay an integer number of seconds; fractional values (e.g. 0.5)
+-- are rejected by config validation on some wezterm versions.
+config.status_update_interval = 1
+
+-- Push path: zsh emits OSC 1337 SetUserVar KB=<EN|TH> on every switch.
+-- This event fires instantly (even mid-line); update last-good state here
+-- and nudge tabline to re-render now instead of waiting for the next tick.
+-- NOTE: event name is literally "user-var-changed" (lowercase, hyphens);
+-- "KB" (uppercase) is the variable name inside the handler.
+-- The handler NEVER writes the cache file: the watch daemon + toggle script
+-- own cache writes from live gsettings detection. A stale EN user_var
+-- (precmd re-emit from before a mid-line Super+Space switch) must not
+-- clobber a fresh TH cache file via write-through.
+wezterm.on("user-var-changed", function(window, _pane, name, value)
+  if name ~= "KB" then
+    return
+  end
+  local code = tostring(value or ""):match("^%s*(%a%a)%s*$")
+  if code then
+    code = code:upper()
+    if code == "EN" or code == "TH" then
+      kb_layout_state.text = kb_pad(code)
+    end
+  end
+  if window then
+    pcall(function() window:set_config_overrides(window:get_config_overrides() or {}) end)
+  end
+end)
 
 -- tabline.apply_to_config zeroes window_padding; restore our padding afterwards.
 config.window_padding = { left = 10, right = 10, top = 8, bottom = 8 }

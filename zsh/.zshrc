@@ -134,8 +134,7 @@ __kb_precmd_publish_cached 2>/dev/null || true
 if [[ "$(uname -s 2>/dev/null)" != "Darwin" ]] && command -v gsettings >/dev/null 2>&1; then
   if [[ -z "${__kb_layout_monitor_started:-}" ]]; then
     __kb_layout_monitor_started=1
-    if ! pgrep -f "kb-layout-watch\.sh" >/dev/null 2>&1 \
-      && ! pgrep -f "gsettings monitor.*mru-sources" >/dev/null 2>&1; then
+    if ! pgrep -f "kb-layout-watch\.sh" >/dev/null 2>&1; then
       (nohup "$HOME/.config/wezterm/scripts/kb-layout-watch.sh" >/dev/null 2>&1 &) 2>/dev/null || true
       disown 2>/dev/null || true
     fi

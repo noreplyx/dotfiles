@@ -24,25 +24,38 @@ fi
 publish() {
   local code cached=""
   code="$("$DETECT" 2>/dev/null || true)"
-  [[ "$code" =~ ^[A-Za-z]{2}$ && "$code" != "UNKNOWN" ]] || return 0
+  case "$code" in EN|TH) ;; *) return 0 ;; esac
   [[ -f "$CACHE" ]] && cached="$(cat "$CACHE" 2>/dev/null)" || cached=""
-  [[ "$cached" == "$code" ]] && return 0
+  if [[ "$cached" == "$code" ]]; then mirror_cache "$code"; return 0; fi
   local tmp
   tmp="$(mktemp "${CACHE}.tmp.XXXXXX" 2>/dev/null)" || return 0
   printf '%s' "$code" > "$tmp" 2>/dev/null || return 0
   mv -f "$tmp" "$CACHE" 2>/dev/null || rm -f "$tmp"
+  mirror_cache "$code"
 }
+
+_mirror_cache() {
+  local code="$1" dest seen=";"
+  for dest in "${HOME}/.cache/wezterm-kb-layout" "${XDG_RUNTIME_DIR:-/tmp}/wezterm-kb-layout" "/tmp/wezterm-kb-layout"; do
+    case "$seen" in *";$dest;"*) continue ;; esac
+    seen="$seen$dest;"
+    [[ "$dest" == "$CACHE" ]] && continue
+    printf '%s' "$code" > "$dest" 2>/dev/null || true
+  done
+}
+mirror_cache() { _mirror_cache "$1"; }
 
 publish_fast() {
   local code cached=""
   code="$(FAST=1 "$DETECT" 2>/dev/null || true)"
-  [[ "$code" =~ ^[A-Za-z]{2}$ && "$code" != "UNKNOWN" ]] || return 0
+  case "$code" in EN|TH) ;; *) return 0 ;; esac
   [[ -f "$CACHE" ]] && cached="$(cat "$CACHE" 2>/dev/null)" || cached=""
-  [[ "$cached" == "$code" ]] && return 0
+  if [[ "$cached" == "$code" ]]; then mirror_cache "$code"; return 0; fi
   local tmp
   tmp="$(mktemp "${CACHE}.tmp.XXXXXX" 2>/dev/null)" || return 0
   printf '%s' "$code" > "$tmp" 2>/dev/null || return 0
   mv -f "$tmp" "$CACHE" 2>/dev/null || rm -f "$tmp"
+  mirror_cache "$code"
 }
 
 publish
@@ -61,6 +74,15 @@ if [[ "$(uname -s 2>/dev/null)" == "Darwin" ]]; then
 fi
 
 command -v gsettings >/dev/null 2>&1 || exit 0
-gsettings monitor org.gnome.desktop.input-sources mru-sources 2>/dev/null | while IFS= read -r _; do
-  publish
-done
+# Whole-schema monitor covers current + mru-sources + sources so `current` flips heal the cache.
+if command -v stdbuf >/dev/null 2>&1; then
+  stdbuf -o0 -e0 gsettings monitor org.gnome.desktop.input-sources 2>/dev/null | while IFS= read -r _; do
+    sleep 0.15 2>/dev/null || true
+    publish_fast
+  done
+else
+  gsettings monitor org.gnome.desktop.input-sources 2>/dev/null | while IFS= read -r _; do
+    sleep 0.15 2>/dev/null || true
+    publish_fast
+  done
+fi

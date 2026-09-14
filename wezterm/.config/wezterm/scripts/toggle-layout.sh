@@ -19,30 +19,40 @@ esac
 
 current=""
 if [[ "$WANT" == "NEXT" ]]; then
-  if [[ -r "$CACHE" ]]; then
-    current="$(cat "$CACHE" 2>/dev/null | tr -d ' \t\r\n' || true)"
+  if [[ -x "$DETECT" ]]; then
+    current="$("$DETECT" 2>/dev/null || true)"
+    current="$(printf '%s' "$current" | tr -d ' \t\r\n' || true)"
     case "$current" in EN|en|En) current="EN" ;; TH|th|Th) current="TH" ;; *) current="" ;; esac
   fi
-  if [[ -z "$current" && -x "$DETECT" ]]; then
-    current="$(FAST=1 "$DETECT" 2>/dev/null || true)"
-    [[ "$current" == "UNKNOWN" ]] && current=""
+  if [[ -z "$current" && -r "$CACHE" ]]; then
+    current="$(cat "$CACHE" 2>/dev/null | tr -d ' \t\r\n' || true)"
+    case "$current" in EN|en|En) current="EN" ;; TH|th|Th) current="TH" ;; *) current="" ;; esac
   fi
   if [[ "$current" == "TH" ]]; then WANT="EN"; else WANT="TH"; fi
 fi
 
 push_want() {
   local code="$1" tmp b64
-  tmp="$(mktemp "${CACHE}.tmp.XXXXXX" 2>/dev/null)" && { printf '%s' "$code" > "$tmp" 2>/dev/null && mv -f "$tmp" "$CACHE" 2>/dev/null || rm -f "$tmp"; }
+  # Secure atomic write: mktemp (no predictable $$ symlink TOCTOU) +
+  # precomputed base64 (no base64/tr forks). Saves ~15-20ms foreground.
+  tmp="$(command mktemp "${CACHE}.tmp.XXXXXX" 2>/dev/null)" || return 0
+  { printf '%s' "$code" > "$tmp" 2>/dev/null && mv -f "$tmp" "$CACHE" 2>/dev/null || rm -f "$tmp"; } 2>/dev/null || true
+  for dest in "${HOME}/.cache/wezterm-kb-layout" "/tmp/wezterm-kb-layout"; do
+    [[ "$dest" == "$CACHE" ]] && continue
+    printf '%s' "$code" > "$dest" 2>/dev/null || true
+  done
   # Darwin: skip `wezterm cli` (extra fork + socket round-trip); OSC+cache is enough.
   if [[ "$_OS" != "Darwin" ]]; then
     if command -v wezterm >/dev/null 2>&1; then
       wezterm cli set-user-var KB "$code" >/dev/null 2>&1 || true
     fi
   fi
-  if command -v base64 >/dev/null 2>&1; then
-    b64="$(printf '%s' "$code" | base64 2>/dev/null | tr -d '\n' || true)"
-    [[ -n "${b64:-}" ]] && { printf '\033]1337;SetUserVar=KB=%s\007' "$b64" > /dev/tty; } 2>/dev/null || true;
-  fi
+  case "$code" in
+    EN) b64="RU4=" ;;
+    TH) b64="VEg=" ;;
+    *) b64="" ;;
+  esac
+  [[ -n "$b64" ]] && { printf '\033]1337;SetUserVar=KB=%s\007' "$b64" > /dev/tty; } 2>/dev/null || true
 }
 
 switch_to() {
@@ -62,10 +72,26 @@ switch_to() {
   # first so display never '--', background heal corrects any mismatch.
   _ok() {
     local want="$1"
+    sleep 0.5 2>/dev/null || true
+    _verify_want "$want" || return 1
     push_want "$want"
-    _verify_want "$want" || true
     return 0
   }
+  _sync_ibus() {
+    local want="$1"
+    command -v ibus >/dev/null 2>&1 || return 0
+    ibus engine >/dev/null 2>&1 || return 0
+    if [[ "$want" == "TH" ]]; then
+      ibus engine 'xkb:th::tha' >/dev/null 2>&1 || true
+    else
+      ibus engine 'xkb:us::eng' >/dev/null 2>&1 || true
+    fi
+    return 0
+  }
+  # GNOME global switch (primary): rotate `current` index to the entry
+  # matching WANT. `current` is system-wide so Chrome etc follow; `detect`
+  # reads this same index, keeping the tabline aligned. mru reorder alone
+  # does not change `current` and is not used here.
   # macOS (Darwin): switch via cached $IM_SELECTOR (macism preferred, im-select
   # fallback) and cached input IDs: single fork per switch after first resolve.
   if [[ "$_OS" == "Darwin" ]]; then
@@ -157,6 +183,31 @@ switch_to() {
     fi
     return 1
   fi
+  # GNOME global switch (primary when gsettings present): set `current`
+  # index to the sources entry matching WANT, sync ibus as secondary.
+  if command -v gsettings >/dev/null 2>&1; then
+    _sources="$(gsettings get org.gnome.desktop.input-sources sources 2>/dev/null || true)"
+    if [[ -n "$_sources" ]]; then
+      _idx=-1; _i=0
+      while IFS= read -r _line; do
+        _low="$(printf '%s' "$_line" | tr '[:upper:]' '[:lower:]' || true)"
+        if [[ "$want" == "TH" ]]; then
+          case "$_low" in *thai*|*tha*) _idx="$_i"; break ;; esac
+          printf '%s' "$_low" | grep -Eq '(^|[^a-z])th([^a-z]|$)' && { _idx="$_i"; break; }
+        else
+          case "$_low" in *usinternational*|*us_international*|*us-international*) _idx="$_i"; break ;; esac
+          printf '%s' "$_low" | grep -Eq '(^|[^a-z])(us|english)([^a-z]|$)' && { _idx="$_i"; break; }
+        fi
+        _i=$((_i + 1))
+      done < <(printf '%s' "$_sources" | grep -Eo "\('[^']*', *'[^']*'\)") 2>/dev/null || true
+      if [[ "$_idx" -ge 0 ]]; then
+        gsettings set org.gnome.desktop.input-sources current "$_idx" >/dev/null 2>&1 && {
+          _sync_ibus "$want"
+          _ok "$want" && return 0
+        }
+      fi
+    fi
+  fi
   # hyprctl switchxkblayout (all keyboards, next-aware)
   if command -v hyprctl >/dev/null 2>&1; then
     dev="$(hyprctl devices -j 2>/dev/null | grep -Eo '"name": *"[^"]+"' | head -n1 | cut -d'"' -f4 || true)"
@@ -185,25 +236,17 @@ switch_to() {
       ibus engine 'xkb:us::eng' 2>/dev/null && { _ok "$want"; return 0; }
     fi
   fi
-  # gsettings: move wanted source to front of mru-sources
-  if command -v gsettings >/dev/null 2>&1; then
-    mru="$(gsettings get org.gnome.desktop.input-sources mru-sources 2>/dev/null || true)"
-    if [[ -n "$mru" ]]; then
-      entry="$(printf '%s' "$mru" | grep -Eo "\('[^']+', *'[^']*'\)" | grep -i "$lwant" | head -n1 || true)"
-      if [[ -n "$entry" ]]; then
-        rest="$(printf '%s' "$mru" | grep -Eo "\('[^']+', *'[^']*'\)" | grep -vi "$lwant" || true)"
-        new="[${entry}$(printf '%s' "$rest" | sed 's/^/, /' | tr '\n' ' ' | sed 's/ *$//')]"
-        gsettings set org.gnome.desktop.input-sources mru-sources "$new" >/dev/null 2>&1 && { _ok "$want"; return 0; }
-      fi
-    fi
-  fi
-  # setxkbmap last resort
+  # setxkbmap last resort (X11 only; skipped on GNOME where gsettings
+  # `current` is the global switch — setxkbmap alone would not move
+  # Chrome nor match detect).
+  if ! command -v gsettings >/dev/null 2>&1; then
   if command -v setxkbmap >/dev/null 2>&1; then
     if [[ "$want" == "TH" ]]; then
       setxkbmap -layout th 2>/dev/null && { _ok "$want"; return 0; }
     else
       setxkbmap -layout us 2>/dev/null && { _ok "$want"; return 0; }
     fi
+  fi
   fi
   return 1
 }

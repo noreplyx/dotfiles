@@ -30,7 +30,7 @@ normalize() {
   local s="${1:-}"
   s="$(printf '%s' "$s" | tr '[:upper:]' '[:lower:]')"
   case "$s" in
-    *thai*|*" th "*|*"(th)"*|*"+th"*|*",th"*|*"th,"*|*"'th'"*|*'"th"'*|*"[th"*|*" th"*)
+    *thai*|*tha*|*" th "*|*"(th)"*|*"+th"*|*",th"*|*"th,"*|*"'th'"*|*'"th"'*|*"[th"*|*" th"*)
       printf 'TH\n'; return 0 ;;
   esac
   # Bare "th" token as its own word
@@ -45,15 +45,47 @@ is_english() {
   s="$(printf '%s' "$s" | tr '[:upper:]' '[:lower:]')"
   case "$s" in
     *usinternational*|*us_international*|*us-international*) return 0 ;;
-    *com.apple.keylayout.abc*|*com.apple.keylayout.us*|*abc*|*us*) printf '%s' "$s" | grep -Eq 'abc|us|english|usinternational' && return 0 ;;
   esac
-  printf '%s' "$s" | grep -Eq 'us|english|xkb:us|us\+|us,|\(us\)' && return 0
+  printf '%s' "$s" | grep -Eq '(^|[^a-z])(us|english|abc)([^a-z]|$)' && return 0
   return 1
 }
 
-# Fast path: FAST=1 serves cache + cheap backends only (no forks on hit,
-# no slow `defaults`/hyprctl/setxkbmap). Else UNKNOWN exit 2.
+# sources entries are tuples like ('xkb', 'us'); splitting on ',' breaks
+# them, so extract whole tuples and index 0-based.
+_sources_entry() {
+  local sources="$1" idx="$2"
+  printf '%s' "$sources" | grep -Eo "\('[^']*', *'[^']*'\)" | sed -n "$((idx + 1))p" || true
+}
+
+# Fast path: FAST=1 serves live ibus engine first (authoritative for
+# Win+Space/Super+Space switches; gsettings `current` goes stale at 0),
+# then mru-sources recency, then current+sources, then cache + cheap backends.
+# Else UNKNOWN exit 2.
 if [[ "${FAST:-0}" == "1" ]]; then
+  if command -v ibus >/dev/null 2>&1; then
+    engine="$(ibus engine 2>/dev/null || true)"
+    if [[ -n "${engine:-}" ]]; then
+      if normalize "$engine" >/dev/null; then printf 'TH\n'; exit 0; fi
+      if is_english "$engine" || [[ "$engine" == *xkb* ]]; then printf 'EN\n'; exit 0; fi
+    fi
+  fi
+  if [[ "$_OS" != "Darwin" ]] && command -v gsettings >/dev/null 2>&1; then
+    mru="$(gsettings get org.gnome.desktop.input-sources mru-sources 2>/dev/null || true)"
+    if [[ -n "${mru:-}" ]]; then
+      _mru_first="$(printf '%s' "$mru" | grep -Eo "\('[^']*', *'[^']*'\)" | head -n1 || true)"
+      [[ -z "$_mru_first" ]] && _mru_first="$mru"
+      if normalize "$_mru_first" >/dev/null; then printf 'TH\n'; exit 0; fi
+      if is_english "$_mru_first" >/dev/null; then printf 'EN\n'; exit 0; fi
+    fi
+    current="$(gsettings get org.gnome.desktop.input-sources current 2>/dev/null || true)"
+    sources="$(gsettings get org.gnome.desktop.input-sources sources 2>/dev/null || true)"
+    idx="$(printf '%s' "$current" | grep -Eo '[0-9]+' | tail -n1 || true)"
+    if [[ -n "${idx:-}" && -n "${sources:-}" ]]; then
+      entry="$(_sources_entry "$sources" "$idx")"
+      if normalize "$entry" >/dev/null; then printf 'TH\n'; exit 0; fi
+      if is_english "$entry" >/dev/null; then printf 'EN\n'; exit 0; fi
+    fi
+  fi
   _fast_cache="${XDG_RUNTIME_DIR:-/tmp}/wezterm-kb-layout"
   if [[ -z "${XDG_RUNTIME_DIR:-}" && -d "${HOME}/.cache" ]]; then _fast_cache="${HOME}/.cache/wezterm-kb-layout"; fi
   if [[ -r "$_fast_cache" ]]; then
@@ -86,13 +118,10 @@ if [[ "${FAST:-0}" == "1" ]]; then
   if command -v gsettings >/dev/null 2>&1; then
     mru="$(gsettings get org.gnome.desktop.input-sources mru-sources 2>/dev/null || true)"
     if [[ -n "${mru:-}" ]]; then
-      if normalize "$mru" >/dev/null; then
-        us_pos="${mru%%us*}"; th_pos="${mru%%th*}"
-        if [[ "$mru" != *"us"* ]] || (( ${#th_pos} < ${#us_pos} )); then printf 'TH\n'; exit 0; fi
-        printf 'EN\n'; exit 0
-      elif is_english "$mru"; then
-        printf 'EN\n'; exit 0
-      fi
+      _mru_first="$(printf '%s' "$mru" | grep -Eo "\('[^']*', *'[^']*'\)" | head -n1 || true)"
+      [[ -z "$_mru_first" ]] && _mru_first="$mru"
+      if normalize "$_mru_first" >/dev/null; then printf 'TH\n'; exit 0; fi
+      if is_english "$_mru_first" >/dev/null; then printf 'EN\n'; exit 0; fi
     fi
   fi
   printf 'UNKNOWN\n'; exit 2
@@ -135,36 +164,32 @@ if [[ "$_OS" == "Darwin" ]]; then
   exit 2
 fi
 
-# 1. gsettings current index + sources list
-if command -v gsettings >/dev/null 2>&1; then
-  current="$(gsettings get org.gnome.desktop.input-sources current 2>/dev/null || true)"
-  sources="$(gsettings get org.gnome.desktop.input-sources sources 2>/dev/null || true)"
-  mru="$(gsettings get org.gnome.desktop.input-sources mru-sources 2>/dev/null || true)"
-  idx="$(printf '%s' "$current" | grep -Eo '[0-9]+' | head -n1 || true)"
-  if [[ -n "${idx:-}" && -n "${sources:-}" ]]; then
-    entry="$(printf '%s' "$sources" | tr ',' '\n' | sed -n "$((idx + 1))p" || true)"
-    if normalize "$entry" >/dev/null; then printf 'TH\n'; exit 0; fi
-    if is_english "$entry"; then printf 'EN\n'; exit 0; fi
-  fi
-  # Fallback: first mru entry order decides
-  if [[ -n "${mru:-}" ]]; then
-    if normalize "$mru" >/dev/null; then
-      # mru lists most-recent first; but bare substring could mislead, check order
-      us_pos="${mru%%us*}"; th_pos="${mru%%th*}"
-      if [[ "$mru" != *"us"* ]] || (( ${#th_pos} < ${#us_pos} )); then printf 'TH\n'; exit 0; fi
-      printf 'EN\n'; exit 0
-    elif is_english "$mru"; then
-      printf 'EN\n'; exit 0
-    fi
-  fi
-fi
-
-# 2. ibus engine
+# 1. ibus engine (live; authoritative for Win+Space/Super+Space switches)
 if command -v ibus >/dev/null 2>&1; then
   engine="$(ibus engine 2>/dev/null || true)"
   if [[ -n "$engine" ]]; then
     if normalize "$engine" >/dev/null; then printf 'TH\n'; exit 0; fi
     if is_english "$engine" || [[ "$engine" == *xkb* ]]; then printf 'EN\n'; exit 0; fi
+  fi
+fi
+
+# 2. gsettings mru-sources recency, then current index + sources list
+if command -v gsettings >/dev/null 2>&1; then
+  current="$(gsettings get org.gnome.desktop.input-sources current 2>/dev/null || true)"
+  sources="$(gsettings get org.gnome.desktop.input-sources sources 2>/dev/null || true)"
+  mru="$(gsettings get org.gnome.desktop.input-sources mru-sources 2>/dev/null || true)"
+  # Recency first: mru[0] tracks the last-used source even when `current` is stale
+  if [[ -n "${mru:-}" ]]; then
+    _mru_first="$(printf '%s' "$mru" | grep -Eo "\('[^']*', *'[^']*'\)" | head -n1 || true)"
+    [[ -z "$_mru_first" ]] && _mru_first="$mru"
+    if normalize "$_mru_first" >/dev/null; then printf 'TH\n'; exit 0; fi
+    if is_english "$_mru_first"; then printf 'EN\n'; exit 0; fi
+  fi
+  idx="$(printf '%s' "$current" | grep -Eo '[0-9]+' | tail -n1 || true)"
+  if [[ -n "${idx:-}" && -n "${sources:-}" ]]; then
+    entry="$(_sources_entry "$sources" "$idx")"
+    if normalize "$entry" >/dev/null; then printf 'TH\n'; exit 0; fi
+    if is_english "$entry"; then printf 'EN\n'; exit 0; fi
   fi
 fi
 
