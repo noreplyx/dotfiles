@@ -9,7 +9,7 @@ command mkdir -p "$_KB_DIR" 2>/dev/null || { _KB_DIR="/tmp"; command mkdir -p "$
 CACHE="${_KB_DIR}/wezterm-kb-layout"
 
 # Singleton guard: one daemon per user (zshrc + gui-startup both spawn).
-LOCKFILE="${XDG_RUNTIME_DIR:-/tmp}/wezterm-kb-layout-watch.${USER:-$(id -un 2>/dev/null)}.lock"
+LOCKFILE="${_KB_DIR}/wezterm-kb-layout-watch.${USER:-$(id -un 2>/dev/null)}.lock"
 if command -v flock >/dev/null 2>&1; then
   exec 9>"$LOCKFILE" 2>/dev/null || true
   flock -n 9 2>/dev/null || exit 0

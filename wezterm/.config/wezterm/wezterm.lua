@@ -30,7 +30,10 @@ config.enable_scroll_bar = false
 config.adjust_window_size_when_changing_font_size = false
 
 local kb_layout_state = { text = " -- " }
-local kb_cache_path = (os.getenv("HOME") or "") .. "/.cache/wezterm-kb-layout"
+local kb_cache_path = (os.getenv("XDG_RUNTIME_DIR") or "") .. "/wezterm-kb-layout"
+if kb_cache_path == "/wezterm-kb-layout" then
+  kb_cache_path = (os.getenv("HOME") or "") .. "/.cache/wezterm-kb-layout"
+end
 
 local function kb_pad(code)
   code = code:upper():sub(1, 2)

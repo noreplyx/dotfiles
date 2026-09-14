@@ -49,6 +49,15 @@ switch_to() {
   local want="$1"
   local lwant
   lwant="$(printf '%s' "$want" | tr '[:upper:]' '[:lower:]')"
+  _verify_want() {
+    local want="$1" got=""
+    if [[ -x "$DETECT" ]]; then
+      got="$("$DETECT" 2>/dev/null || true)"
+      got="$(printf '%s' "$got" | tr -d ' \t\r\n' || true)"
+      case "$got" in EN) got="EN" ;; TH) got="TH" ;; *) got="" ;; esac
+    fi
+    [[ -n "$got" && "$got" == "$want" ]]
+  }
   # macOS (Darwin): switch via cached $IM_SELECTOR (macism preferred, im-select
   # fallback) and cached input IDs: single fork per switch after first resolve.
   if [[ "$_OS" == "Darwin" ]]; then
@@ -72,10 +81,12 @@ switch_to() {
     if [[ -n "$sel_from_cache" && -n "$id_en" && -n "$id_th" ]]; then warm=1; fi
     if [[ "$warm" == "1" ]]; then
       if [[ "$want" == "TH" ]]; then
-        "$sel" "$id_th" >/dev/null 2>&1 && return 0
+        "$sel" "$id_th" >/dev/null 2>&1 && _verify_want "$want" && return 0
       else
-        "$sel" "$id_en" >/dev/null 2>&1 && return 0
+        "$sel" "$id_en" >/dev/null 2>&1 && _verify_want "$want" && return 0
       fi
+      rm -f "$id_cache" 2>/dev/null || true
+      id_en=""; id_th=""
       sel=""; sel_from_cache=""
     fi
     if [[ -z "$sel" ]]; then
@@ -102,13 +113,16 @@ switch_to() {
           id_th="${id_th:-com.apple.keylayout.Thai}"
         fi
         { printf '%s\n%s\n' "$id_en" "$id_th" > "$id_cache"; } 2>/dev/null || true
-        return 0
+        _verify_want "$want" && return 0
+        rm -f "$id_cache" 2>/dev/null || true
+        return 1
       fi
       if [[ "$want" == "TH" ]]; then
-        "$sel" "$id_th" >/dev/null 2>&1 && return 0
+        "$sel" "$id_th" >/dev/null 2>&1 && _verify_want "$want" && return 0
       else
-        "$sel" "$id_en" >/dev/null 2>&1 && return 0
+        "$sel" "$id_en" >/dev/null 2>&1 && _verify_want "$want" && return 0
       fi
+      rm -f "$id_cache" 2>/dev/null || true
     fi
     return 1
   fi
@@ -116,28 +130,28 @@ switch_to() {
   if command -v hyprctl >/dev/null 2>&1; then
     dev="$(hyprctl devices -j 2>/dev/null | grep -Eo '"name": *"[^"]+"' | head -n1 | cut -d'"' -f4 || true)"
     if [[ -n "${dev:-}" ]]; then
-      hyprctl switchxkblayout "$dev" "$lwant" >/dev/null 2>&1 && return 0
-      hyprctl switchxkblayout "$dev" next >/dev/null 2>&1 && return 0
+      hyprctl switchxkblayout "$dev" "$lwant" >/dev/null 2>&1 && _verify_want "$want" && return 0
+      hyprctl switchxkblayout "$dev" next >/dev/null 2>&1 && _verify_want "$want" && return 0
     else
-      hyprctl switchxkblayout next >/dev/null 2>&1 && return 0
+      hyprctl switchxkblayout next >/dev/null 2>&1 && _verify_want "$want" && return 0
     fi
   fi
   # fcitx5-remote: -s switches (im name varies); best effort
   if command -v fcitx5-remote >/dev/null 2>&1; then
     if [[ "$want" == "TH" ]]; then
-      fcitx5-remote -s thai 2>/dev/null && return 0
-      fcitx5-remote -s keyboard-th 2>/dev/null && return 0
+      fcitx5-remote -s thai 2>/dev/null && _verify_want "$want" && return 0
+      fcitx5-remote -s keyboard-th 2>/dev/null && _verify_want "$want" && return 0
     else
-      fcitx5-remote -s keyboard-us 2>/dev/null && return 0
+      fcitx5-remote -s keyboard-us 2>/dev/null && _verify_want "$want" && return 0
     fi
-    fcitx5-remote -t 2>/dev/null && return 0
+    fcitx5-remote -t 2>/dev/null && _verify_want "$want" && return 0
   fi
   # ibus engine switch
   if command -v ibus >/dev/null 2>&1; then
     if [[ "$want" == "TH" ]]; then
-      ibus engine 'xkb:th::tha' 2>/dev/null && return 0
+      ibus engine 'xkb:th::tha' 2>/dev/null && _verify_want "$want" && return 0
     else
-      ibus engine 'xkb:us::eng' 2>/dev/null && return 0
+      ibus engine 'xkb:us::eng' 2>/dev/null && _verify_want "$want" && return 0
     fi
   fi
   # gsettings: move wanted source to front of mru-sources
@@ -148,16 +162,16 @@ switch_to() {
       if [[ -n "$entry" ]]; then
         rest="$(printf '%s' "$mru" | grep -Eo "\('[^']+', *'[^']*'\)" | grep -vi "$lwant" || true)"
         new="[${entry}$(printf '%s' "$rest" | sed 's/^/, /' | tr '\n' ' ' | sed 's/ *$//')]"
-        gsettings set org.gnome.desktop.input-sources mru-sources "$new" >/dev/null 2>&1 && return 0
+        gsettings set org.gnome.desktop.input-sources mru-sources "$new" >/dev/null 2>&1 && _verify_want "$want" && return 0
       fi
     fi
   fi
   # setxkbmap last resort
   if command -v setxkbmap >/dev/null 2>&1; then
     if [[ "$want" == "TH" ]]; then
-      setxkbmap -layout th 2>/dev/null && return 0
+      setxkbmap -layout th 2>/dev/null && _verify_want "$want" && return 0
     else
-      setxkbmap -layout us 2>/dev/null && return 0
+      setxkbmap -layout us 2>/dev/null && _verify_want "$want" && return 0
     fi
   fi
   return 1
@@ -171,13 +185,20 @@ printf '%s\n' "$WANT"
 # Background heal: real switch, settle 0.5-0.8s, full detect, correct cache on
 # mismatch (transient mismatch never sticks; failure heals in ~2s).
 (
-  switch_to "$WANT" || true
+  switch_to "$WANT"; sw_rc=$?
+  [[ "$sw_rc" != "0" ]] && rm -f "${_KB_DIR}/wezterm-kb-ids" 2>/dev/null || true
   sleep 0.6 2>/dev/null || true
   code=""
   if [[ -x "$DETECT" ]]; then
     code="$("$DETECT" 2>/dev/null || true)"
+    code="$(printf '%s' "$code" | tr -d ' \t\r\n' || true)"
   fi
-  if [[ "$code" =~ ^[A-Za-z]{2}$ && "$code" != "UNKNOWN" && "$code" != "$WANT" ]]; then
-    push_want "$code"
+  if [[ "$code" == "UNKNOWN" || -z "$code" ]]; then
+    sleep 0.5 2>/dev/null || true
+    if [[ -x "$DETECT" ]]; then
+      code="$("$DETECT" 2>/dev/null || true)"
+      code="$(printf '%s' "$code" | tr -d ' \t\r\n' || true)"
+    fi
   fi
+  case "$code" in EN|TH) [[ "$code" != "$WANT" ]] && push_want "$code" ;; esac
 ) >/dev/null 2>&1 & disown 2>/dev/null || true
