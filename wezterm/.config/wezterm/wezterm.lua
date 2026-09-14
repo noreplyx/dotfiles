@@ -29,6 +29,14 @@ config.scrollback_lines = 50000
 config.enable_scroll_bar = false
 config.adjust_window_size_when_changing_font_size = false
 
+local kb_layout_state = { text = " -- " }
+local kb_cache_path = (os.getenv("HOME") or "") .. "/.cache/wezterm-kb-layout"
+
+local function kb_pad(code)
+  code = code:upper():sub(1, 2)
+  return " " .. code .. " "
+end
+
 config.keys = {
   { key = "h", mods = "CTRL|SHIFT", action = wezterm.action.ActivatePaneDirection "Left" },
   { key = "j", mods = "CTRL|SHIFT", action = wezterm.action.ActivatePaneDirection "Down" },
@@ -41,7 +49,42 @@ config.keys = {
   { key = "LeftArrow", mods = "CTRL|SHIFT", action = wezterm.action.ActivateTabRelative(-1) },
   { key = "RightArrow", mods = "CTRL|SHIFT", action = wezterm.action.ActivateTabRelative(1) },
   { key = "Enter", mods = "ALT", action = wezterm.action.ToggleFullScreen },
+  -- Keyboard layout toggle: CTRL+SHIFT+SPACE primary, ALT+SHIFT+L fallback.
+  -- No collision with existing CTRL|SHIFT h/j/k/l/d/r/w/t or ALT+Enter.
+  { key = " ", mods = "CTRL|SHIFT", action = wezterm.action.EmitEvent "kb-toggle-layout" },
+  { key = "L", mods = "ALT|SHIFT", action = wezterm.action.EmitEvent "kb-toggle-layout" },
 }
+
+local kb_toggle_script = (os.getenv("HOME") or "") .. "/.config/wezterm/scripts/toggle-layout.sh"
+
+wezterm.on("kb-toggle-layout", function(window, _pane)
+  local before = kb_layout_state.text:match("%a%a") or "??"
+  local ok, _, stderr = wezterm.run_child_process({ kb_toggle_script, "--toggle" })
+  local after = before
+  local file = io.open(kb_cache_path, "r")
+  if file then
+    local raw = file:read("*l")
+    file:close()
+    local code = raw and raw:match("^%s*(%a%a)%s*$")
+    if code then
+      after = code:upper()
+      kb_layout_state.text = kb_pad(after)
+    end
+  end
+  if window then
+    pcall(function() window:toast_notification("Keyboard layout", before .. " → " .. after, nil, 1500) end)
+  end
+  if not ok then
+    wezterm.log_error("kb-toggle-layout failed: " .. tostring(stderr))
+  end
+end)
+
+wezterm.on("gui-startup", function()
+  pcall(function()
+    wezterm.run_child_process({ "bash", "-lc",
+      "pgrep -f kb-layout-watch.sh >/dev/null || (nohup ~/.config/wezterm/scripts/kb-layout-watch.sh >/dev/null 2>&1 &)" })
+  end)
+end)
 
 -- Armed by the tab-bar ✕ (OnClick). Enter opens wezterm's native close-tab
 -- confirmation dialog, which names the tab being closed by its first pane's
@@ -147,6 +190,35 @@ local function close_button(tab)
   })
 end
 
+-- _window is the tabline component signature (window, tab). Push path first:
+-- the zsh publisher emits OSC 1337 SetUserVar KB=<base64> on every switch, so
+-- window:user_vars().KB reflects instantly (even mid-line, no precmd/poll).
+-- File cache is the fallback (TTL 0: read on every render, no throttling).
+-- Keeps last-known-good (initial " -- ", never a fake default). Always
+-- returns a string; tabline concatenates without nil guards.
+local function kb_layout(window)
+  if window then
+    local ok, vars = pcall(function() return window:user_vars() end)
+    if ok and vars and vars.KB then
+      local code = tostring(vars.KB):match("^%s*(%a%a)%s*$")
+      if code then
+        kb_layout_state.text = kb_pad(code)
+        return kb_layout_state.text
+      end
+    end
+  end
+  local file = io.open(kb_cache_path, "r")
+  if file then
+    local raw = file:read("*l")
+    file:close()
+    local code = raw and raw:match("^%s*(%a%a)%s*$")
+    if code then
+      kb_layout_state.text = kb_pad(code)
+    end
+  end
+  return kb_layout_state.text
+end
+
 tabline.setup({
   options = {
     theme = "Tokyo Night",
@@ -175,7 +247,7 @@ tabline.setup({
     -- datetime is re-added on the far right as a live clock (tabline sets
     -- status_update_interval = 500, so it re-renders every ~0.5s)
     tabline_x = {},
-    tabline_y = {},
+    tabline_y = { kb_layout },
     tabline_z = { { "datetime", style = "%a %d %b %Y %H:%M:%S" } },
   },
   extensions = {},

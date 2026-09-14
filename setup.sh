@@ -361,6 +361,33 @@ pin_tabline_wez() {
   return 0
 }
 
+install_kb_layout_watcher() {
+  info "Setting up keyboard layout watcher"
+  chmod +x "$DOTFILES_DIR/wezterm/.config/wezterm/scripts/detect-layout.sh" \
+    "$DOTFILES_DIR/wezterm/.config/wezterm/scripts/toggle-layout.sh" \
+    "$DOTFILES_DIR/wezterm/.config/wezterm/scripts/kb-layout-watch.sh" 2>/dev/null || true
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    if ! command -v macism >/dev/null 2>&1 && ! command -v im-select >/dev/null 2>&1; then
+      info "macOS input switching needs macism or im-select: brew install macism  (or: brew install im-select)"
+    else
+      skip "input switcher already installed"
+    fi
+    skip "systemctl not used on macOS; kb-layout-watch.sh is launched via wezterm gui-startup"
+    return 0
+  fi
+  mkdir -p "$HOME/.config/systemd/user" 2>/dev/null || true
+  ln -sf "$DOTFILES_DIR/wezterm/.config/wezterm/scripts/kb-layout-watch.service" \
+    "$HOME/.config/systemd/user/kb-layout-watch.service" 2>/dev/null || true
+  if command_exists systemctl; then
+    systemctl --user daemon-reload >/dev/null 2>&1 || true
+    systemctl --user enable --now kb-layout-watch.service >/dev/null 2>&1 || \
+      warn "could not enable kb-layout-watch.service (non-fatal; file-cache fallback still works)"
+  else
+    skip "systemctl not found; kb-layout-watch.service not enabled (file-cache fallback still works)"
+  fi
+  return 0
+}
+
 write_dotfiles_path() {
   info "Writing dotfiles path to ~/.config/dotfiles/path"
   mkdir -p "$HOME/.config/dotfiles"
@@ -395,6 +422,7 @@ main() {
   install_herdr_opencode
   install_wezterm "$os"
   pin_tabline_wez
+  install_kb_layout_watcher
   write_dotfiles_path
   stow_packages
   install_yazi_plugins

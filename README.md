@@ -318,6 +318,24 @@ dotfiles/
 
 Shows prefix highlight indicator, current session name, and time.
 
+### WezTerm keyboard layout (EN/TH)
+
+Live layout segment in the tabline (`tabline_y`), kept as last-good or
+` -- ` when unknown — never a fake default:
+
+- `wezterm/.config/wezterm/scripts/detect-layout.sh` — prints `EN`/`TH`
+  (`UNKNOWN`, exit 2 when indeterminable); backend order
+  gsettings → ibus → hyprctl → fcitx5-remote → setxkbmap.
+- `wezterm/.config/wezterm/scripts/toggle-layout.sh [--next|--toggle|EN|TH]` —
+  switches via hyprctl → fcitx5 → ibus → gsettings → setxkbmap, then
+  re-detects and atomically rewrites `~/.cache/wezterm-kb-layout`.
+- `wezterm/.config/wezterm/scripts/kb-layout-watch.sh` (+ user systemd unit
+  `kb-layout-watch.service`, enabled by `setup.sh`) — blocking
+  `gsettings monitor`, no polling, negligible idle CPU.
+- Toggle from WezTerm: `CTRL+SHIFT+SPACE` (fallback `ALT+SHIFT+L`) with a
+  toast (`EN → TH`); `.zshrc` precmd republishes via `detect-layout.sh`.
+- Daemon absence is graceful (cache + user-var fallback still render).
+
 ### Layout
 
 New sessions start with a 72/28 horizontal split (left pane 72%, right pane 28%).

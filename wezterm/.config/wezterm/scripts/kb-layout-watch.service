@@ -1,0 +1,13 @@
+[Unit]
+Description=WezTerm keyboard layout watcher (push cache, no polling)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.config/wezterm/scripts/kb-layout-watch.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
