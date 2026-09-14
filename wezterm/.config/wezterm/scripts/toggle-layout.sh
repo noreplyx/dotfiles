@@ -18,15 +18,15 @@ case "$target" in
 esac
 
 current=""
-if [[ -r "$CACHE" ]]; then
-  current="$(cat "$CACHE" 2>/dev/null | tr -d ' \t\r\n' || true)"
-  case "$current" in EN|en|En) current="EN" ;; TH|th|Th) current="TH" ;; *) current="" ;; esac
-fi
-if [[ -z "$current" && -x "$DETECT" ]]; then
-  current="$(FAST=1 "$DETECT" 2>/dev/null || true)"
-  [[ "$current" == "UNKNOWN" ]] && current=""
-fi
 if [[ "$WANT" == "NEXT" ]]; then
+  if [[ -r "$CACHE" ]]; then
+    current="$(cat "$CACHE" 2>/dev/null | tr -d ' \t\r\n' || true)"
+    case "$current" in EN|en|En) current="EN" ;; TH|th|Th) current="TH" ;; *) current="" ;; esac
+  fi
+  if [[ -z "$current" && -x "$DETECT" ]]; then
+    current="$(FAST=1 "$DETECT" 2>/dev/null || true)"
+    [[ "$current" == "UNKNOWN" ]] && current=""
+  fi
   if [[ "$current" == "TH" ]]; then WANT="EN"; else WANT="TH"; fi
 fi
 
