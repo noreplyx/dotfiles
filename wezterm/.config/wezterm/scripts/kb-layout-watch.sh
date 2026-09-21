@@ -66,8 +66,10 @@ publish
 # Darwin-only; tune KB_DARWIN_POLL (1.5-2s).
 if [[ "$(uname -s 2>/dev/null)" == "Darwin" ]]; then
   _poll="${KB_DARWIN_POLL:-2}"
+  if [[ ! "$_poll" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then _poll="2"; fi
+  case "$_poll" in 0|0.0) _poll="2" ;; esac
   while true; do
-    sleep "$_poll"
+    sleep "$_poll" 2>/dev/null || sleep 2
     publish_fast
   done
   exit 0

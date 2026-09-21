@@ -1,6 +1,19 @@
 # Dotfiles
 
-Configuration for my development environment on Fedora Linux and macOS.
+Configuration for my development environment on Fedora Linux, macOS, Windows (Git Bash), and WSL.
+
+## Support matrix
+
+| Target | Shell bootstrap | Package manager | Status |
+| ------ | --------------- | --------------- | ------ |
+| macOS | `./setup.sh` | Homebrew | supported |
+| Fedora | `./setup.sh` | dnf | supported |
+| WSL (Fedora/remix under WSL2) | `./setup.sh` | dnf (same as Fedora) | supported |
+| Windows (Git Bash) | `./setup.sh` (winget guidance) | winget (manual) | supported |
+
+`setup.sh` detects the OS via `detect_os` (`windows` → `macos` → `wsl` → `fedora` → `unknown`).
+WSL is a distinct target from bare Fedora; Windows (Git Bash/MSYS/MINGW/Cygwin) is a distinct
+target that prints `winget` install guidance instead of invoking `dnf`/`brew`.
 
 ## How to use this project
 
@@ -35,7 +48,7 @@ wezterm
 exec zsh
 ```
 
-`setup.sh` is idempotent and detects Fedora vs macOS (dnf vs brew). Steps that
+`setup.sh` is idempotent and detects Fedora vs macOS vs WSL vs Windows (dnf vs brew vs dnf-on-WSL vs winget guidance). Steps that
 require interaction (changing your shell, tmux plugin install) are left manual.
 
 `setup.sh` and `make install` write the repo location to
@@ -161,7 +174,6 @@ sudo dnf install -y wezterm
 ```bash
 brew update
 ```
-
 ```bash
 brew install \
   git \
@@ -193,6 +205,29 @@ brew install --cask wezterm
 ```
 
 Install a [Nerd Font](https://www.nerdfonts.com/) (e.g. JetBrainsMono) for icons in Neovim and Starship.
+
+### WSL
+
+WSL is a distinct target from bare Fedora. Inside the WSL distribution, follow the
+Fedora prerequisites above (`dnf`). `setup.sh` reports `Detected OS: wsl` and reuses
+the Fedora `dnf` path. If `systemd` is unavailable in your WSL setup, the keyboard
+layout watcher falls back to the file cache (non-fatal).
+
+### Windows (Git Bash)
+
+`setup.sh` reports `Detected OS: windows` under Git Bash / MSYS / MINGW / Cygwin and
+prints `winget` guidance instead of installing automatically:
+
+```powershell
+winget install Git.Git Starship.Starship Neovim.Neovim fzf BurntSushi.ripgrep.MSVC sharkdp.fd sharkdp.bat eza-community.eza ajeetdsouza.zoxide sxyazi.yazi JesseDuffield.lazygit GitHub.cli wez.wezterm
+```
+
+Install `stow` (required for `./setup.sh` to deploy symlinks). `stow` is not
+available via winget; install it via [MSYS2](https://www.msys2.org/)
+(`pacman -S stow`) or use the Git Bash/MSYS2 environment that already
+provides it, then verify with `stow --version`.
+
+Then re-run `./setup.sh` to deploy symlinks via `stow` (install `stow` first if missing).
 
 ---
 

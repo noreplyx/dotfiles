@@ -114,7 +114,11 @@ switch_to() {
     fi
     if [[ -n "$sel_from_cache" && -n "$id_en" && -n "$id_th" ]]; then warm=1; fi
     if [[ "$warm" == "1" ]]; then
-      if [[ "$want" == "TH" ]]; then
+      if ! command -v "$sel" >/dev/null 2>&1; then
+        rm -f "$id_cache" 2>/dev/null || true
+        id_en=""; id_th=""
+        sel=""; sel_from_cache=""
+      elif [[ "$want" == "TH" ]]; then
         "$sel" "$id_th" >/dev/null 2>&1 && _verify_want "$want" && return 0
       else
         "$sel" "$id_en" >/dev/null 2>&1 && _verify_want "$want" && return 0
@@ -155,12 +159,14 @@ switch_to() {
         if [[ "$want" == "TH" ]]; then
           while IFS= read -r _id; do
             [[ -z "$_id" ]] && continue
+            command -v "$sel" >/dev/null 2>&1 || break
             "$sel" "$_id" >/dev/null 2>&1 && _verify_want "$want" && { id_th="$_id"; break; }
           done < <(_darwin_ids_for TH)
           id_en="${id_en:-com.apple.keylayout.ABC}"
         else
           while IFS= read -r _id; do
             [[ -z "$_id" ]] && continue
+            command -v "$sel" >/dev/null 2>&1 || break
             "$sel" "$_id" >/dev/null 2>&1 && _verify_want "$want" && { id_en="$_id"; break; }
           done < <(_darwin_ids_for EN)
           id_th="${id_th:-com.apple.keylayout.Thai}"
@@ -175,9 +181,9 @@ switch_to() {
         return 1
       fi
       if [[ "$want" == "TH" ]]; then
-        "$sel" "$id_th" >/dev/null 2>&1 && _verify_want "$want" && return 0
+        command -v "$sel" >/dev/null 2>&1 && "$sel" "$id_th" >/dev/null 2>&1 && _verify_want "$want" && return 0
       else
-        "$sel" "$id_en" >/dev/null 2>&1 && _verify_want "$want" && return 0
+        command -v "$sel" >/dev/null 2>&1 && "$sel" "$id_en" >/dev/null 2>&1 && _verify_want "$want" && return 0
       fi
       rm -f "$id_cache" 2>/dev/null || true
     fi

@@ -71,6 +71,7 @@ config.keys = {
 }
 
 local kb_toggle_script = (os.getenv("HOME") or "") .. "/.config/wezterm/scripts/toggle-layout.sh"
+local kb_watch_script = (os.getenv("HOME") or "") .. "/.config/wezterm/scripts/kb-layout-watch.sh"
 
 wezterm.on("kb-toggle-layout", function(window, _pane)
   -- Instant path: flip Lua state + toast FIRST (keypress→pixels, no waits),
@@ -99,8 +100,8 @@ end)
 
 wezterm.on("gui-startup", function()
   pcall(function()
-    wezterm.run_child_process({ "bash", "-lc",
-      "pgrep -f kb-layout-watch.sh >/dev/null || (nohup ~/.config/wezterm/scripts/kb-layout-watch.sh >/dev/null 2>&1 &)" })
+    wezterm.run_child_process({ "/bin/bash", "-lc",
+      'command -v pgrep >/dev/null 2>&1 && pgrep -f "kb-layout-watch\\.sh" >/dev/null 2>&1 || nohup "' .. kb_watch_script .. '" >/dev/null 2>&1 &' })
   end)
 end)
 

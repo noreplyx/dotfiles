@@ -7,6 +7,18 @@ if [[ -z "${XDG_RUNTIME_DIR:-}" && -d "${HOME}/.cache" ]]; then _KB_DIR="${HOME}
 _SEL_CACHE="${_KB_DIR}/wezterm-kb-selector"
 _dbg() { [[ "${KB_DEBUG:-0}" == "1" ]] && printf 'detect: %s\n' "$*" >&2 || true; }
 
+# Darwin exact-match classifier: runs before fuzzy normalize/is_english so
+# native input-source IDs never fall through to substring guessing.
+_darwin_exact() {
+  local s="${1:-}" t=""
+  t="$(printf '%s' "$s" | tr -d ' \t\r\n' || true)"
+  case "$t" in
+    com.apple.keylayout.ABC|com.apple.keylayout.US|ABC|US) printf 'EN\n'; return 0 ;;
+    com.apple.keylayout.Thai|com.apple.keylayout.ThaiKedmanee|Thai) printf 'TH\n'; return 0 ;;
+  esac
+  return 1
+}
+
 _cached_sel() {
   local s="${IM_SELECTOR:-}"
   if [[ -z "$s" && -r "$_SEL_CACHE" ]]; then
@@ -16,11 +28,13 @@ _cached_sel() {
 }
 
 _try_sel() {
-  local sel="$1" raw=""
+  local sel="$1" raw="" code=""
   [[ -z "$sel" ]] && return 1
+  command -v "$sel" >/dev/null 2>&1 || return 1
   raw="$("$sel" 2>/dev/null || true)"
   _dbg "sel=$sel raw=${raw:-<empty>}"
   [[ -z "$raw" ]] && return 1
+  if code="$(_darwin_exact "$raw")" && [[ -n "$code" ]]; then printf '%s\n' "$code"; return 0; fi
   if normalize "$raw" >/dev/null; then printf 'TH\n'; return 0; fi
   if is_english "$raw"; then printf 'EN\n'; return 0; fi
   return 1
@@ -102,6 +116,7 @@ if [[ "${FAST:-0}" == "1" ]]; then
     if command -v macism >/dev/null 2>&1; then
       raw="$(macism 2>/dev/null || true)"
       if [[ -n "$raw" ]]; then
+        if code="$(_darwin_exact "$raw")" && [[ -n "$code" ]]; then printf '%s\n' "$code"; exit 0; fi
         if normalize "$raw" >/dev/null; then printf 'TH\n'; exit 0; fi
         if is_english "$raw"; then printf 'EN\n'; exit 0; fi
       fi
@@ -109,6 +124,7 @@ if [[ "${FAST:-0}" == "1" ]]; then
     if command -v im-select >/dev/null 2>&1; then
       raw="$(im-select 2>/dev/null || true)"
       if [[ -n "$raw" ]]; then
+        if code="$(_darwin_exact "$raw")" && [[ -n "$code" ]]; then printf '%s\n' "$code"; exit 0; fi
         if normalize "$raw" >/dev/null; then printf 'TH\n'; exit 0; fi
         if is_english "$raw"; then printf 'EN\n'; exit 0; fi
       fi
@@ -137,6 +153,7 @@ if [[ "$_OS" == "Darwin" ]]; then
     raw="$(macism 2>/dev/null || true)"
     _dbg "macism raw=${raw:-<empty>}"
     if [[ -n "$raw" ]]; then
+      if code="$(_darwin_exact "$raw")" && [[ -n "$code" ]]; then printf '%s\n' "$code"; exit 0; fi
       if normalize "$raw" >/dev/null; then printf 'TH\n'; exit 0; fi
       if is_english "$raw"; then printf 'EN\n'; exit 0; fi
     fi
@@ -145,6 +162,7 @@ if [[ "$_OS" == "Darwin" ]]; then
     raw="$(im-select 2>/dev/null || true)"
     _dbg "im-select raw=${raw:-<empty>}"
     if [[ -n "$raw" ]]; then
+      if code="$(_darwin_exact "$raw")" && [[ -n "$code" ]]; then printf '%s\n' "$code"; exit 0; fi
       if normalize "$raw" >/dev/null; then printf 'TH\n'; exit 0; fi
       if is_english "$raw"; then printf 'EN\n'; exit 0; fi
     fi
@@ -157,6 +175,7 @@ if [[ "$_OS" == "Darwin" ]]; then
   fi
   _dbg "defaults raw=${raw:-<empty>}"
   if [[ -n "$raw" ]]; then
+    if code="$(_darwin_exact "$raw")" && [[ -n "$code" ]]; then printf '%s\n' "$code"; exit 0; fi
     if normalize "$raw" >/dev/null; then printf 'TH\n'; exit 0; fi
     if is_english "$raw"; then printf 'EN\n'; exit 0; fi
   fi
