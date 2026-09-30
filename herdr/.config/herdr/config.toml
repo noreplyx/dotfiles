@@ -17,3 +17,12 @@ key = "prefix+a"
 type = "shell"
 command = "herdr plugin pane open --plugin dnzzl.automations --entrypoint board --placement overlay"
 description = "show automations board"
+
+[[keys.command]]
+key = "prefix+t"
+type = "plugin_action"
+command = "zenbu-labs.terminal-browser.open-split"
+description = "open terminal-browser (right split)"
+
+[experimental]
+kitty_graphics = true
