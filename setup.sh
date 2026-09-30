@@ -12,6 +12,7 @@ PACKAGES="zsh tmux starship nvim yazi lazygit lazysql herdr wezterm"
 ZINIT_PIN_REF="HEAD" # UNKNOWN hash: zdharma-continuum/zinit publishes no checksum; pinned to branch ref, review file before exec
 STARSHIP_INSTALL_URL="https://starship.rs/install.sh" # UNKNOWN hash: starship.rs installer publishes no checksum file
 HERDR_INSTALL_URL="https://herdr.dev/install.sh" # UNKNOWN hash: herdr.dev installer publishes no versioned checksum
+HERDR_BIRDSEYE_REF="0521d53ec31f129f79fdda889ed219a12fd9d60b" # reviewed commit (upstream publishes no tags; manifest version 0.6.0): calebcauthon/herdr-birdseye birdseye dashboard (prefix+shift+b)
 RESVG_PIN_TAG="latest" # UNKNOWN hash: linebender/resvg publishes no checksums; change to vX.Y.Z to pin
 LAZYSQL_PIN_TAG="latest" # UNKNOWN hash: jorgerojas26/lazysql publishes no checksums; change to vX.Y.Z to pin
 # MACISM via brew formula (versioned by Homebrew; `brew info macism` shows pinned
@@ -435,6 +436,20 @@ install_herdr() {
   esac
 }
 
+install_herdr_birdseye() {
+  if ! command_exists herdr; then
+    warn "herdr not found; run 'herdr plugin install calebcauthon/herdr-birdseye' after installing it"
+    return
+  fi
+  if herdr plugin list 2>/dev/null | grep -q "herdr-plugins.birdseye\|birdseye"; then
+    skip "herdr birdseye plugin already installed"
+    return
+  fi
+  info "Installing herdr birdseye plugin (${HERDR_BIRDSEYE_REF})"
+  herdr plugin install "calebcauthon/herdr-birdseye" --ref "$HERDR_BIRDSEYE_REF" -y \
+    || warn "herdr birdseye install failed (non-fatal); install manually: herdr plugin install calebcauthon/herdr-birdseye"
+}
+
 install_herdr_opencode() {
   if ! command_exists herdr; then
     warn "herdr not found; run 'herdr integration install opencode' after installing it"
@@ -607,6 +622,7 @@ main() {
   install_lazysql "$os"
   install_herdr "$os"
   install_herdr_opencode
+  install_herdr_birdseye
   install_wezterm "$os"
   pin_tabline_wez
   install_kb_layout_watcher "$os"

@@ -110,7 +110,7 @@ stow -t ~ nvim
 - **LazyGit** — TUI git client with Tokyo Night theme, opened from Neovim with `<leader>gg`
 - **GitHub CLI** — `gh`, installed by `setup.sh` (dnf/brew); powers Octo PR creation. Authenticate once with `gh auth login`; tokens live in `~/.config/gh/hosts.yml` (never committed)
 - **LazySQL** — TUI database client (MySQL, PostgreSQL, SQLite, MSSQL, MongoDB) with configurable connections, opened from Neovim with `<leader>ls`
-- **Herdr** — terminal workspace manager for AI coding agents, with always-running background server, pane state tracking (working/blocked/idle), and agent-native CLI/socket API
+- **Herdr** — terminal workspace manager for AI coding agents, with always-running background server, pane state tracking (working/blocked/idle), and agent-native CLI/socket API. Birdseye plugin (`prefix+shift+b`) shows all agents in a live grid/column dashboard
 
 ### Neovim plugins
 

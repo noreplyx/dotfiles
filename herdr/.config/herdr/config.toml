@@ -5,3 +5,9 @@ open_worktree = "prefix+shift+o"
 
 [theme]
 name = "tokyo-night"
+
+[[keys.command]]
+key = "prefix+shift+b"
+type = "plugin_action"
+command = "herdr-plugins.birdseye.show"
+description = "show birdseye view"
