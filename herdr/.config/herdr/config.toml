@@ -11,3 +11,9 @@ key = "prefix+shift+b"
 type = "plugin_action"
 command = "herdr-plugins.birdseye.show"
 description = "show birdseye view"
+
+[[keys.command]]
+key = "prefix+a"
+type = "shell"
+command = "herdr plugin pane open --plugin dnzzl.automations --entrypoint board --placement overlay"
+description = "show automations board"

@@ -13,6 +13,7 @@ ZINIT_PIN_REF="HEAD" # UNKNOWN hash: zdharma-continuum/zinit publishes no checks
 STARSHIP_INSTALL_URL="https://starship.rs/install.sh" # UNKNOWN hash: starship.rs installer publishes no checksum file
 HERDR_INSTALL_URL="https://herdr.dev/install.sh" # UNKNOWN hash: herdr.dev installer publishes no versioned checksum
 HERDR_BIRDSEYE_REF="0521d53ec31f129f79fdda889ed219a12fd9d60b" # reviewed commit (upstream publishes no tags; manifest version 0.6.0): calebcauthon/herdr-birdseye birdseye dashboard (prefix+shift+b)
+HERDR_AUTOMATIONS_REF="c869ffa5ffee3e94f9507cd366d3c4330e6435fd" # reviewed commit (upstream publishes no tags; manifest version 0.8.0): DnzzL/herdr-automations cron-scheduled agent prompts (prefix+a)
 RESVG_PIN_TAG="latest" # UNKNOWN hash: linebender/resvg publishes no checksums; change to vX.Y.Z to pin
 LAZYSQL_PIN_TAG="latest" # UNKNOWN hash: jorgerojas26/lazysql publishes no checksums; change to vX.Y.Z to pin
 # MACISM via brew formula (versioned by Homebrew; `brew info macism` shows pinned
@@ -459,6 +460,20 @@ install_herdr_opencode() {
   herdr integration install opencode
 }
 
+install_herdr_automations() {
+  if ! command_exists herdr; then
+    warn "herdr not found; run 'herdr plugin install DnzzL/herdr-automations' after installing it"
+    return
+  fi
+  if herdr plugin list 2>/dev/null | grep -q "dnzzl.automations\|herdr-automations"; then
+    skip "herdr automations plugin already installed"
+    return
+  fi
+  info "Installing herdr automations plugin (${HERDR_AUTOMATIONS_REF})"
+  herdr plugin install "DnzzL/herdr-automations" --ref "$HERDR_AUTOMATIONS_REF" -y \
+    || warn "herdr automations install failed (non-fatal); install manually: herdr plugin install DnzzL/herdr-automations"
+}
+
 install_wezterm() {
   if command_exists wezterm; then
     skip "WezTerm already installed"
@@ -623,6 +638,7 @@ main() {
   install_herdr "$os"
   install_herdr_opencode
   install_herdr_birdseye
+  install_herdr_automations
   install_wezterm "$os"
   pin_tabline_wez
   install_kb_layout_watcher "$os"
