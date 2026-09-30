@@ -60,6 +60,9 @@ export PATH="$HOME/.opencode/bin:$PATH"
 # local binaries
 export PATH="$HOME/.local/bin:$PATH"
 
+# Homebrew
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+
 # Keyboard layout publisher for wezterm tabline (thin wrapper over detect-layout.sh).
 _kb_dir="${XDG_RUNTIME_DIR:-/tmp}"
 if [[ -z "${XDG_RUNTIME_DIR:-}" && -d "${HOME}/.cache" ]]; then _kb_dir="${HOME}/.cache"; fi
