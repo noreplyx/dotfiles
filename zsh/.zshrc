@@ -44,8 +44,8 @@ zinit light zsh-users/zsh-syntax-highlighting
 
 autoload -Uz compinit
 compinit -C
-eval "$(zoxide init zsh)"
-eval "$(starship init zsh)"
+command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init zsh)"
+command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"
 
 # bun completions
 [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
@@ -60,8 +60,14 @@ export PATH="$HOME/.opencode/bin:$PATH"
 # local binaries
 export PATH="$HOME/.local/bin:$PATH"
 
-# Homebrew
-eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+# Homebrew (portable: Linuxbrew vs macOS / generic PATH)
+if [[ -x "/home/linuxbrew/.linuxbrew/bin/brew" ]]; then
+  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+elif [[ -x "/opt/homebrew/bin/brew" ]]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+elif command -v brew >/dev/null 2>&1; then
+  eval "$(brew shellenv)"
+fi
 
 # Keyboard layout publisher for wezterm tabline (thin wrapper over detect-layout.sh).
 _kb_dir="${XDG_RUNTIME_DIR:-/tmp}"

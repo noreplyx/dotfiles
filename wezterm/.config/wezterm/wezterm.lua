@@ -13,7 +13,12 @@ if wezterm.config_builder then
   config = wezterm.config_builder()
 end
 
-config.default_prog = { "/bin/zsh", "-l" }
+-- Use zsh login shell on Unix; on Windows fall back to system default (pwsh/powershell)
+-- so wezterm doesn't try to run /bin/zsh which doesn't exist there.
+if not (wezterm.target_triple and wezterm.target_triple:find("windows")) then
+  -- Prefer zsh from PATH; hardcoding /bin/zsh breaks on macOS (Homebrew zsh) and NixOS.
+  config.default_prog = { "zsh", "-l" }
+end
 config.color_scheme = "Tokyo Night"
 config.font = wezterm.font_with_fallback({ "JetBrains Mono", "MesloLGS Nerd Font Mono" })
 config.font_size = 16.0
@@ -100,7 +105,7 @@ end)
 
 wezterm.on("gui-startup", function()
   pcall(function()
-    wezterm.run_child_process({ "/bin/bash", "-lc",
+    wezterm.run_child_process({ "bash", "-lc",
       'command -v pgrep >/dev/null 2>&1 && pgrep -f "kb-layout-watch\\.sh" >/dev/null 2>&1 || nohup "' .. kb_watch_script .. '" >/dev/null 2>&1 &' })
   end)
 end)
