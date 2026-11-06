@@ -1,8 +1,9 @@
 return {
   "HiPhish/rainbow-delimiters.nvim",
+  event = "LazyFile",
   main = "rainbow-delimiters.setup",
   opts = {
-    strategy = { [""] = "rainbow-delimiters.strategy.global" },
+    strategy = { [""] = "rainbow-delimiters.strategy.local" },
     query = {
       javascript = "rainbow-delimiters",
       typescript = "rainbow-delimiters",

@@ -1,4 +1,10 @@
 gui:
+  showFileTree: true
+  showRandomTip: false
+  showCommandLog: false
+  skipDiscardChangeWarning: false
+  nerdFontsVersion: "3"
+
   # ── Diff colors ──
   diffContextColor: ["#565f89"]
   diffAddedLineColor: ["#9ece6a"]
@@ -26,3 +32,22 @@ gui:
       - "#1a1b26"
     unstagedChangesColor:
       - "#f7768e"
+
+git:
+  autoFetch: false
+  autoRefresh: true
+  fetchAll: false
+  parseEmoji: false
+  log:
+    order: "topo-order"
+    showGraph: "when-maximised"
+    showWholeGraph: false
+
+refresher:
+  refreshInterval: 30
+  fetchInterval: 300
+
+os:
+  editPreset: "nvim-remote"
+
+notARepository: "quit"

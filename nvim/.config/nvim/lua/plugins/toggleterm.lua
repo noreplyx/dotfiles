@@ -4,6 +4,7 @@ return {
     version = "*",
     keys = {
       { "<leader>tf", "<cmd>ToggleTerm<cr>", desc = "Toggle floating terminal" },
+      { [[<c-\>]], "<cmd>ToggleTerm<cr>", mode = { "n", "t" }, desc = "Toggle floating terminal" },
     },
     opts = {
       size = 20,

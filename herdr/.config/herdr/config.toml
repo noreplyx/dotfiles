@@ -24,5 +24,17 @@ type = "plugin_action"
 command = "zenbu-labs.terminal-browser.open-split"
 description = "open terminal-browser (right split)"
 
-[experimental]
+[[keys.command]]
+key = "prefix+shift+a"
+type = "shell"
+command = "powershell -WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& \\\"$HOME/.config/herdr/scripts/keep-awake.ps1\\\" --toggle\" || ~/.config/herdr/scripts/keep-awake.sh --toggle"
+description = "toggle screen keep-awake"
+
+[terminal]
 kitty_graphics = true
+
+[ui]
+tab_bar_right = [
+  { type = "command", command = "powershell -WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& \\\"$HOME/.config/herdr/scripts/keep-awake.ps1\\\" --badge\" || ~/.config/herdr/scripts/keep-awake.sh --badge", interval_seconds = 1, timeout_seconds = 2 },
+  { type = "zoom" },
+]

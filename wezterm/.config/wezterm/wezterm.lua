@@ -13,16 +13,57 @@ if wezterm.config_builder then
   config = wezterm.config_builder()
 end
 
+local is_windows = (wezterm.target_triple and wezterm.target_triple:find("windows")) ~= nil
+
+-- Detect whether a hardware GPU adapter is available, or if Windows fell back
+-- to CPU rendering ("Microsoft Basic Render Driver", device_type == "Cpu").
+local has_hardware_gpu = true
+if wezterm.gui and wezterm.gui.enumerate_gpus then
+  local ok, gpus = pcall(wezterm.gui.enumerate_gpus)
+  if ok and type(gpus) == "table" and #gpus > 0 then
+    has_hardware_gpu = false
+    for _, gpu in ipairs(gpus) do
+      if gpu.device_type ~= "Cpu" then
+        has_hardware_gpu = true
+        break
+      end
+    end
+  end
+end
+
 -- Use zsh login shell on Unix; on Windows fall back to system default (pwsh/powershell)
 -- so wezterm doesn't try to run /bin/zsh which doesn't exist there.
-if not (wezterm.target_triple and wezterm.target_triple:find("windows")) then
+if not is_windows then
   -- Prefer zsh from PATH; hardcoding /bin/zsh breaks on macOS (Homebrew zsh) and NixOS.
   config.default_prog = { "zsh", "-l" }
+else
+  config.default_prog = { "pwsh.exe", "-NoLogo" }
+  -- Windows often lacks a modern OpenGL driver (e.g. GDI Generic 1.1 in VMs/RDP
+  -- or when the display driver has crashed), causing:
+  --   "The OpenGL implementation is too old to work with glium"
+  -- WebGpu uses DirectX 12 / WARP on Windows and works reliably.
+  config.front_end = "WebGpu"
+  config.webgpu_power_preference = "HighPerformance"
 end
+config.set_environment_variables = {
+  XDG_CONFIG_HOME = wezterm.home_dir .. "/.config",
+}
 config.color_scheme = "Tokyo Night"
-config.font = wezterm.font_with_fallback({ "JetBrains Mono", "MesloLGS Nerd Font Mono" })
+config.font = wezterm.font_with_fallback(
+  { "JetBrains Mono", "MesloLGS Nerd Font Mono" },
+  { harfbuzz_features = { "calt=0", "clig=0", "liga=0" } }
+)
 config.font_size = 16.0
-config.window_background_opacity = 0.96
+config.window_background_opacity = is_windows and 1.0 or (has_hardware_gpu and 0.96 or 1.0)
+if has_hardware_gpu then
+  config.max_fps = 120
+  config.animation_fps = 60
+  config.cursor_blink_rate = 0
+else
+  config.max_fps = 60
+  config.animation_fps = 1
+  config.cursor_blink_rate = 0
+end
 config.window_padding = {
   left = 10,
   right = 10,
@@ -30,31 +71,44 @@ config.window_padding = {
   bottom = 8,
 }
 config.use_fancy_tab_bar = false
-config.scrollback_lines = 50000
+config.scrollback_lines = 10000
+config.check_for_updates = false
 config.enable_scroll_bar = false
 config.adjust_window_size_when_changing_font_size = false
 
-local kb_layout_state = { text = " -- " }
-local kb_cache_primary = (os.getenv("HOME") or "") .. "/.cache/wezterm-kb-layout"
-local kb_cache_fallback = (os.getenv("XDG_RUNTIME_DIR") or "") .. "/wezterm-kb-layout"
-local kb_cache_path = kb_cache_primary
-if kb_cache_primary == "/.cache/wezterm-kb-layout" then
-  kb_cache_path = kb_cache_fallback
+local keyboard_layout_state = { text = " -- ", initialized = false }
+local last_keyboard_cache_read_epoch = 0
+local keyboard_layout_cache_paths = {}
+if not is_windows then
+  local seen = {}
+  local home = os.getenv("HOME")
+  local xdg_runtime = os.getenv("XDG_RUNTIME_DIR")
+  for _, candidate in ipairs({
+    (xdg_runtime and xdg_runtime ~= "") and (xdg_runtime .. "/wezterm-kb-layout") or false,
+    (home and home ~= "") and (home .. "/.cache/wezterm-kb-layout") or false,
+    "/tmp/wezterm-kb-layout",
+  }) do
+    if candidate and not seen[candidate] then
+      seen[candidate] = true
+      table.insert(keyboard_layout_cache_paths, candidate)
+    end
+  end
 end
 
-local function kb_pad(code)
+local function pad_keyboard_layout(code)
   code = code:upper():sub(1, 2)
   return " " .. code .. " "
 end
 
-local function kb_format(code)
+local function format_keyboard_layout(code)
   if code == "TH" then
     return wezterm.format({
       { Foreground = { Color = "#7dcfff" } },
-      { Text = kb_pad(code) },
+      { Text = pad_keyboard_layout(code) },
+      { Foreground = { Color = "#c0caf5" } },
     })
   end
-  return wezterm.format({ { Text = kb_pad(code) } })
+  return wezterm.format({ { Text = pad_keyboard_layout(code) } })
 end
 
 config.keys = {
@@ -75,23 +129,28 @@ config.keys = {
   { key = "L", mods = "ALT|SHIFT", action = wezterm.action.EmitEvent "kb-toggle-layout" },
 }
 
-local kb_toggle_script = (os.getenv("HOME") or "") .. "/.config/wezterm/scripts/toggle-layout.sh"
-local kb_watch_script = (os.getenv("HOME") or "") .. "/.config/wezterm/scripts/kb-layout-watch.sh"
+local keyboard_layout_toggle_script = (os.getenv("HOME") or "") .. "/.config/wezterm/scripts/toggle-layout.sh"
+local keyboard_layout_watch_script = (os.getenv("HOME") or "") .. "/.config/wezterm/scripts/kb-layout-watch.sh"
 
 wezterm.on("kb-toggle-layout", function(window, _pane)
+  if is_windows then
+    return
+  end
   -- Instant path: flip Lua state + toast FIRST (keypress→pixels, no waits),
   -- force an immediate status re-render, then hand the explicit target to
   -- toggle-layout.sh LAST (fire-and-forget). Explicit EN/TH avoids the
   -- stale-EN race where --toggle re-detects the pre-switch layout and flips
   -- back. Background script heals cache/OSC.
-  local before = kb_layout_state.text:match("%a%a") or "??"
+  local before = keyboard_layout_state.text:match("%a%a") or "??"
   local after = "TH"
   if before == "TH" then
     after = "EN"
   elseif before == "EN" then
     after = "TH"
   end
-  kb_layout_state.text = kb_pad(after)
+  keyboard_layout_state.text = pad_keyboard_layout(after)
+  keyboard_layout_state.initialized = true
+  last_keyboard_cache_read_epoch = os.time()
   if window then
     pcall(function() window:toast_notification("Keyboard layout", before .. " → " .. after, nil, 1500) end)
     -- Nudge tabline to re-render now instead of waiting for its ~1s
@@ -99,14 +158,17 @@ wezterm.on("kb-toggle-layout", function(window, _pane)
     pcall(function() window:set_config_overrides(window:get_config_overrides() or {}) end)
   end
   pcall(function()
-    wezterm.run_child_process({ "bash", kb_toggle_script, after })
+    wezterm.run_child_process({ "bash", keyboard_layout_toggle_script, after })
   end)
 end)
 
 wezterm.on("gui-startup", function()
+  if is_windows then
+    return
+  end
   pcall(function()
     wezterm.run_child_process({ "bash", "-lc",
-      'command -v pgrep >/dev/null 2>&1 && pgrep -f "kb-layout-watch\\.sh" >/dev/null 2>&1 || nohup "' .. kb_watch_script .. '" >/dev/null 2>&1 &' })
+      'command -v pgrep >/dev/null 2>&1 && pgrep -f "kb-layout-watch\\.sh" >/dev/null 2>&1 || nohup "' .. keyboard_layout_watch_script .. '" >/dev/null 2>&1 &' })
   end)
 end)
 
@@ -125,85 +187,17 @@ config.key_tables = {
   },
 }
 
--- Network throughput (rx/tx rate) read from /proc/net/dev. tabline concatenates
--- component results without guarding nil, so this must always return
--- wezterm.format cells (never nil).
-local net_state = nil
-
-local function fmt_rate(bps)
-  if bps < 1024 then
-    return string.format("%.0f B/s", bps)
-  end
-  local units = { "KB/s", "MB/s", "GB/s" }
-  local value = bps / 1024
-  local i = 1
-  while value >= 1024 and i < #units do
-    value = value / 1024
-    i = i + 1
-  end
-  return string.format("%.1f %s", value, units[i])
-end
-
-local function network(_window)
-  local file = io.open("/proc/net/dev")
-  if not file then
-    return wezterm.format({ { Text = "n/a" } })
-  end
-  local data = file:read("a")
-  file:close()
-  if not data then
-    return wezterm.format({ { Text = "n/a" } })
-  end
-  local rx, tx = 0, 0
-  for line in data:gmatch("[^\n]+") do
-    local iface, rest = line:match("^%s*([^:%s]+):(.+)$")
-    if iface and iface ~= "lo" and not rest:match("^%d+:") then
-      local n, line_rx, line_tx = 0, 0, 0
-      for num in rest:gmatch("%d+") do
-        n = n + 1
-        if n == 1 then
-          line_rx = tonumber(num)
-        elseif n == 9 then
-          line_tx = tonumber(num)
-        end
-      end
-      if n >= 10 then
-        rx = rx + line_rx
-        tx = tx + line_tx
-      end
-    end
-  end
-  local now = os.time()
-  if not net_state then
-    net_state = { rx = rx, tx = tx, t = now, text = " -- " }
-    return wezterm.format({ { Text = net_state.text } })
-  end
-  if now <= net_state.t then
-    return wezterm.format({ { Text = net_state.text } })
-  end
-  local dt = math.max(1, now - net_state.t)
-  -- dt >= 1 (zero/negative clock steps return cached text; dt clamped anyway);
-  -- rate deltas clamped to 0 for counter resets / NIC removal.
-  local text = string.format(
-    " ↓ %s ↑ %s ",
-    fmt_rate(math.max(0, rx - net_state.rx) / dt),
-    fmt_rate(math.max(0, tx - net_state.tx) / dt)
-  )
-  net_state = { rx = rx, tx = tx, t = now, text = text }
-  return wezterm.format({ { Text = text } })
-end
-
 -- Close-tab button for the ACTIVE tab. Click arms the close_tab_mode keytable
 -- (mode chip turns red); Enter confirms via dialog, Esc/timeout cancels. No
 -- one-click close by design. tabline concatenates component results without
--- guarding nil, so this must return wezterm.format cells on every path (see network note).
+-- guarding nil, so this must return wezterm.format cells on every path.
 local function close_button(tab)
   if not tab.is_active then
     return wezterm.format({ { Text = "" } })
   end
   local glyph = "✕" -- plain U+2715; MesloLGS Nerd Font fallback exists, swap to
                     -- wezterm.nerdfonts.md_close if this renders thin at 16pt
-  return wezterm.format({
+  local ok, formatted = pcall(wezterm.format, {
     { Foreground = { Color = "#f7768e" } }, -- Tokyo Night red (hardcoded like
                                             -- color_scheme above; revisit on theme change)
     { Text = " " .. glyph .. " ", OnClick = { ActivateKeyTable = {
@@ -212,6 +206,14 @@ local function close_button(tab)
     { Foreground = { Color = "#c0caf5" } }, -- restore Tokyo Night fg before the
                                             -- separator (belt-and-braces; tabs.lua
                                             -- re-sets colors anyway)
+  })
+  if ok then
+    return formatted
+  end
+  return wezterm.format({
+    { Foreground = { Color = "#f7768e" } },
+    { Text = " " .. glyph .. " " },
+    { Foreground = { Color = "#c0caf5" } },
   })
 end
 
@@ -223,47 +225,55 @@ end
 -- heals within one 1s tick; user_vars stays the fallback/nudge path.
 -- Keeps last-known-good (initial " -- ", never a fake default). Always
 -- returns wezterm.format cells; tabline concatenates without nil guards.
-local function kb_layout(window)
-  local file = io.open(kb_cache_path, "r")
-  if not file and kb_cache_path ~= kb_cache_fallback then
-    file = io.open(kb_cache_fallback, "r")
-  end
-  if not file then
-    file = io.open((os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/wezterm-kb-layout", "r")
-  end
-  if not file then
-    file = io.open("/tmp/wezterm-kb-layout", "r")
-  end
-  if file then
-    local raw = file:read("*l")
-    file:close()
-    local code = raw and raw:match("^%s*(%a%a)%s*$")
+local function render_keyboard_layout(window)
+  if is_windows then
+    local ok, vars = pcall(function() return window and window:user_vars() end)
+    local raw_layout = ok and vars and vars.KB
+    local code = raw_layout and tostring(raw_layout):match("^%s*(%a%a)%s*$")
     if code then
-      code = code:upper()
-      if code == "EN" or code == "TH" then
-        kb_layout_state.text = kb_pad(code)
-        return kb_format(code)
+      return format_keyboard_layout(code:upper())
+    end
+    return format_keyboard_layout("EN")
+  end
+  local now = os.time()
+  if now - last_keyboard_cache_read_epoch >= 5 then
+    last_keyboard_cache_read_epoch = now
+    for _, path in ipairs(keyboard_layout_cache_paths) do
+      local file = io.open(path, "r")
+      if file then
+        local raw_layout = file:read("*l")
+        file:close()
+        local code = raw_layout and raw_layout:match("^%s*(%a%a)%s*$")
+        if code then
+          code = code:upper()
+          if code == "EN" or code == "TH" then
+            keyboard_layout_state.text = pad_keyboard_layout(code)
+            keyboard_layout_state.initialized = true
+            return format_keyboard_layout(code)
+          end
+        end
       end
     end
   end
-  if window then
+  if not keyboard_layout_state.initialized and window then
     local ok, vars = pcall(function() return window:user_vars() end)
     if ok and vars and vars.KB then
       local code = tostring(vars.KB):match("^%s*(%a%a)%s*$")
       if code then
         code = code:upper()
         if code == "EN" or code == "TH" then
-          kb_layout_state.text = kb_pad(code)
-          return kb_format(code)
+          keyboard_layout_state.text = pad_keyboard_layout(code)
+          keyboard_layout_state.initialized = true
+          return format_keyboard_layout(code)
         end
       end
     end
   end
-  local last = kb_layout_state.text:match("%a%a")
+  local last = keyboard_layout_state.text:match("%a%a")
   if last == "TH" or last == "EN" then
-    return kb_format(last)
+    return format_keyboard_layout(last)
   end
-  return wezterm.format({ { Text = kb_layout_state.text } })
+  return wezterm.format({ { Text = keyboard_layout_state.text } })
 end
 
 tabline.setup({
@@ -281,7 +291,10 @@ tabline.setup({
   },
   sections = {
     tabline_a = { "mode" },
-    tabline_b = { "cpu", "ram", "battery", network },
+    -- On Windows 11, tabline.wez's "cpu" and "ram" spawn `cmd.exe /C wmic ...`
+    -- synchronously on the UI thread; wmic is removed in Win11 so each call
+    -- fails after ~200ms without updating last_update_time (never throttling).
+    tabline_b = is_windows and {} or { "battery" },
     tabline_c = { " " },
     tab_active = {
       "index",
@@ -291,22 +304,19 @@ tabline.setup({
     },
     tab_inactive = { "index", { "process", padding = { left = 0, right = 1 } } },
     -- clear tabline's right-side defaults (they duplicate ram/cpu/battery);
-    -- datetime is re-added on the far right as a live clock (tabline sets
-    -- status_update_interval = 1, so it re-renders every ~1s)
+    -- datetime is re-added on the far right as a live clock
     tabline_x = {},
-    tabline_y = { kb_layout },
-    tabline_z = { { "datetime", style = "%a %d %b %Y %H:%M:%S" } },
+    tabline_y = { render_keyboard_layout },
+    tabline_z = { { "datetime", style = "%a %d %b %H:%M" } },
   },
 })
 
 tabline.apply_to_config(config)
 
--- Force frequent re-render so kb_layout (fresh file read every call, no
--- stale upvalue) reflects cache changes within ~1s. tabline sets this
--- itself, but re-assert after apply_to_config in case of version drift.
--- NOTE: must stay an integer number of seconds; fractional values (e.g. 0.5)
--- are rejected by config validation on some wezterm versions.
-config.status_update_interval = 1
+-- NOTE: status_update_interval is in MILLISECONDS (5000 = 5s); when running on
+-- CPU software rendering (no hardware GPU), throttle to 15s to avoid constant
+-- full-window CPU redraws.
+config.status_update_interval = has_hardware_gpu and 5000 or 15000
 
 -- Push path: zsh emits OSC 1337 SetUserVar KB=<EN|TH> on every switch.
 -- This event fires instantly (even mid-line); update last-good state here
@@ -325,7 +335,8 @@ wezterm.on("user-var-changed", function(window, _pane, name, value)
   if code then
     code = code:upper()
     if code == "EN" or code == "TH" then
-      kb_layout_state.text = kb_pad(code)
+      keyboard_layout_state.text = pad_keyboard_layout(code)
+      keyboard_layout_state.initialized = true
     end
   end
   if window then

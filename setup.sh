@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PACKAGES="zsh tmux starship nvim yazi lazygit lazysql herdr wezterm"
+PACKAGES="zsh powershell tmux starship nvim yazi lazygit lazysql herdr wezterm"
 
 # Supply-chain pins (best-effort: upstream publishes no checksums/hashes).
 # Transport is hardened to HTTPS-only (--proto '=https' --tlsv1.2) everywhere.
@@ -407,6 +407,13 @@ install_lazysql() {
 }
 
 install_herdr() {
+  chmod +x "$DOTFILES_DIR/herdr/.config/herdr/scripts/keep-awake.sh" 2>/dev/null || true
+  if [[ "${1:-}" == "windows" && -n "${APPDATA:-}" ]]; then
+    local appdata_dir="$APPDATA"
+    command_exists cygpath && appdata_dir="$(cygpath -u "$APPDATA")"
+    mkdir -p "$appdata_dir/herdr" 2>/dev/null || true
+    ln -sf "$DOTFILES_DIR/herdr/.config/herdr/config.toml" "$appdata_dir/herdr/config.toml" 2>/dev/null || cp -f "$DOTFILES_DIR/herdr/.config/herdr/config.toml" "$appdata_dir/herdr/config.toml" 2>/dev/null || true
+  fi
   if command_exists herdr; then
     skip "herdr already installed"
     return
@@ -620,6 +627,23 @@ install_kb_layout_watcher() {
   return 0
 }
 
+configure_git_performance() {
+  local os="${1:-$(detect_os)}"
+  if ! command_exists git; then
+    warn "git not found; skipping git performance configuration"
+    return 0
+  fi
+  info "Configuring git performance defaults"
+  git config --global core.preloadIndex true
+  git config --global core.untrackedCache true
+  git config --global feature.manyFiles true
+  if [[ "$os" == "windows" ]]; then
+    git config --global core.fscache true
+    git config --global core.fsmonitor true
+  fi
+  ok "git performance defaults configured"
+}
+
 write_dotfiles_path() {
   info "Writing dotfiles path to ~/.config/dotfiles/path"
   mkdir -p "$HOME/.config/dotfiles"
@@ -638,12 +662,62 @@ stow_packages() {
   stow -t "$HOME" $PACKAGES
 }
 
+link_powershell_profile() {
+  local os="${1:-$(detect_os)}"
+  local xdg_profile_src="$DOTFILES_DIR/powershell/.config/powershell/Microsoft.PowerShell_profile.ps1"
+  local xdg_profile_dest="$HOME/.config/powershell/Microsoft.PowerShell_profile.ps1"
+
+  if [[ -f "$xdg_profile_src" && ! -L "$xdg_profile_dest" ]]; then
+    mkdir -p "$HOME/.config/powershell"
+    ln -sf "$xdg_profile_src" "$xdg_profile_dest" 2>/dev/null || cp -f "$xdg_profile_src" "$xdg_profile_dest"
+  fi
+
+  if [[ "$os" != "windows" ]]; then
+    return 0
+  fi
+
+  info "Configuring PowerShell 7 profile and execution policy for Windows"
+  if ! command_exists pwsh; then
+    warn "pwsh not found; skipping Windows PowerShell 7 profile bootstrap"
+    return 0
+  fi
+
+  local raw_profile_path unix_profile_path profile_dir
+  local bootstrap_profile_src="$DOTFILES_DIR/powershell/Documents/PowerShell/Microsoft.PowerShell_profile.ps1"
+  raw_profile_path="$(pwsh -NoProfile -NoLogo -Command '$PROFILE.CurrentUserCurrentHost' 2>/dev/null | tr -d '\r')" || raw_profile_path=""
+  if [[ -n "$raw_profile_path" && -f "$bootstrap_profile_src" ]]; then
+    if command_exists cygpath; then
+      unix_profile_path="$(cygpath -u "$raw_profile_path" 2>/dev/null || printf '%s' "$raw_profile_path")"
+    else
+      unix_profile_path="$raw_profile_path"
+    fi
+    profile_dir="$(dirname "$unix_profile_path")"
+    mkdir -p "$profile_dir" 2>/dev/null || true
+    if [[ ! -L "$unix_profile_path" ]]; then
+      if ln -sf "$bootstrap_profile_src" "$unix_profile_path" 2>/dev/null || cp -f "$bootstrap_profile_src" "$unix_profile_path"; then
+        ok "pwsh bootstrap profile deployed to $unix_profile_path"
+      else
+        warn "Could not write pwsh profile at $unix_profile_path"
+      fi
+    fi
+  fi
+
+  pwsh -NoProfile -NoLogo -Command '
+    $policy = Get-ExecutionPolicy -Scope CurrentUser
+    if ($policy -in @("Undefined", "Restricted")) {
+      Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force -ErrorAction SilentlyContinue
+    }
+  ' >/dev/null 2>&1 || warn "Could not set RemoteSigned execution policy for pwsh (non-fatal)"
+  return 0
+}
+
 main() {
   local os
   os="$(detect_os)"
   info "Detected OS: $os"
 
   install_packages "$os"
+  configure_git_performance "$os"
   install_tpm
   install_zinit
   install_starship
@@ -660,6 +734,7 @@ main() {
   install_kb_layout_watcher "$os"
   write_dotfiles_path
   stow_packages
+  link_powershell_profile "$os"
   install_yazi_plugins
   install_yazi_preview_deps "$os"
 

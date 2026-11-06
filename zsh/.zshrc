@@ -43,9 +43,35 @@ zinit ice wait"0"
 zinit light zsh-users/zsh-syntax-highlighting
 
 autoload -Uz compinit
-compinit -C
-command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init zsh)"
-command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"
+() {
+  setopt local_options extended_glob
+  if [[ ! -f ~/.zcompdump || -n ~/.zcompdump(#qN.mh+24) ]]; then
+    compinit && touch ~/.zcompdump
+  else
+    compinit -C
+  fi
+  if [[ -f ~/.zcompdump && ( ! -f ~/.zcompdump.zwc || ~/.zcompdump -nt ~/.zcompdump.zwc ) ]]; then
+    { zcompile ~/.zcompdump } &!
+  fi
+}
+
+_zsh_cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+command mkdir -p "$_zsh_cache_dir" 2>/dev/null || true
+
+_zsh_source_cached_init() {
+  local tool_name="$1"
+  command -v "$tool_name" >/dev/null 2>&1 || return 0
+  local tool_binary="${commands[$tool_name]:-$(command -v "$tool_name")}"
+  local init_cache="$_zsh_cache_dir/${tool_name}-init.zsh"
+  if [[ ! -r "$init_cache" || "$tool_binary" -nt "$init_cache" ]]; then
+    "$tool_name" init zsh > "$init_cache" 2>/dev/null || rm -f "$init_cache"
+  fi
+  [[ -r "$init_cache" ]] && source "$init_cache"
+}
+
+_zsh_source_cached_init zoxide
+_zsh_source_cached_init starship
+unfunction _zsh_source_cached_init
 
 # bun completions
 [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
@@ -143,10 +169,17 @@ __kb_precmd_publish_cached 2>/dev/null || true
 if [[ "$(uname -s 2>/dev/null)" != "Darwin" ]] && command -v gsettings >/dev/null 2>&1; then
   if [[ -z "${__kb_layout_monitor_started:-}" ]]; then
     __kb_layout_monitor_started=1
-    if ! pgrep -f "kb-layout-watch\.sh" >/dev/null 2>&1; then
-      (nohup "$HOME/.config/wezterm/scripts/kb-layout-watch.sh" >/dev/null 2>&1 &) 2>/dev/null || true
-      disown 2>/dev/null || true
+    _kb_pidfile="$_kb_dir/wezterm-kb-watch.pid"
+    _keyboard_watcher_pid=""
+    [[ -r "$_kb_pidfile" ]] && _keyboard_watcher_pid="$(< "$_kb_pidfile" 2>/dev/null)"
+    if ! { [[ "$_keyboard_watcher_pid" =~ ^[0-9]+$ ]] && (( _keyboard_watcher_pid > 1 )) && kill -0 "$_keyboard_watcher_pid" 2>/dev/null; }; then
+      if _keyboard_watcher_pid="$(pgrep -n -f "kb-layout-watch\.sh" 2>/dev/null)" && [[ -n "$_keyboard_watcher_pid" ]]; then
+        printf '%s\n' "$_keyboard_watcher_pid" > "$_kb_pidfile" 2>/dev/null || true
+      else
+        (nohup "$HOME/.config/wezterm/scripts/kb-layout-watch.sh" >/dev/null 2>&1 & printf '%s\n' "$!" > "$_kb_pidfile" 2>/dev/null) 2>/dev/null || true
+      fi
     fi
+    unset _keyboard_watcher_pid
   fi
 fi
 

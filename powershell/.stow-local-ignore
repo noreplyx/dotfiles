@@ -1,0 +1,2 @@
+# Ignore Windows Documents bootstrap directory when stowing the powershell package
+^/Documents

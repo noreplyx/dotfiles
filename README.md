@@ -18,8 +18,8 @@ target that prints `winget` install guidance instead of invoking `dnf`/`brew`.
 ## How to use this project
 
 This repository uses [GNU Stow](https://www.gnu.org/software/stow/) to manage
-dotfiles as symlinks. Each directory (`zsh/`, `tmux/`, `nvim/`, `starship/`,
-`wezterm/`)
+dotfiles as symlinks. Each directory (`zsh/`, `powershell/`, `tmux/`, `nvim/`, `starship/`,
+`herdr/`, `wezterm/`)
 mirrors the target home directory structure. Running `stow` creates symlinks
 from your home directory back into this repo, so changes are tracked in one
 place.
@@ -66,7 +66,8 @@ make install CODES_DIR=~/Projects
 ```
 
 Per-machine settings (e.g. Flutter, Antigravity CLI paths) go in
-`~/.zshrc.local`, which is sourced automatically and not tracked by git.
+`~/.zshrc.local` (Zsh) or `~/.profile.local.ps1` (PowerShell), which are
+sourced automatically and not tracked by git.
 
 ### Updating
 
@@ -103,6 +104,7 @@ stow -t ~ nvim
 ## Included
 
 - **Zsh** — Zinit plugin manager with autosuggestions, completions, fzf-tab, syntax highlighting
+- **PowerShell 7 (`pwsh`)** — XDG profile with binary-mtime-invalidated init caching (`starship`, `zoxide`, `fnm`), `PSReadLine` predictive IntelliSense (`HistoryAndPlugin` + Tokyo Night palette), zero-startup-cost native `fzf` keybindings (`Ctrl+r`, `Ctrl+t`, `Alt+c`), CLI argument completers (`winget`, `gh`, `carapace`), `yazi` (`y`) and `eza`/`bat` wrappers, and WezTerm OSC 7 + `KB` user-var integration
 - **tmux** — TPM with tmux-sensible, tmux-sessionx (fzf session switcher), prefix-highlight. Vim-style pane resize, 72/28 split layout, custom fzf colors.
 - **Starship** — Minimal prompt with directory, git status, and language runtime info
 - **Neovim** — LazyVim-based IDE with TypeScript, .NET, Docker, SQL, testing, debugging, Git integration
@@ -110,7 +112,7 @@ stow -t ~ nvim
 - **LazyGit** — TUI git client with Tokyo Night theme, opened from Neovim with `<leader>gg`
 - **GitHub CLI** — `gh`, installed by `setup.sh` (dnf/brew); powers Octo PR creation. Authenticate once with `gh auth login`; tokens live in `~/.config/gh/hosts.yml` (never committed)
 - **LazySQL** — TUI database client (MySQL, PostgreSQL, SQLite, MSSQL, MongoDB) with configurable connections, opened from Neovim with `<leader>ls`
-- **Herdr** — terminal workspace manager for AI coding agents, with always-running background server, pane state tracking (working/blocked/idle), and agent-native CLI/socket API. Birdseye plugin (`prefix+shift+b`) shows all agents in a live grid/column dashboard. Automations plugin (`prefix+a`) schedules recurring agent prompts on cron with a live board. Terminal-browser plugin (`prefix+t`) opens a real Chromium browser in a right split
+- **Herdr** — terminal workspace manager for AI coding agents, with always-running background server, pane state tracking (working/blocked/idle), and agent-native CLI/socket API. Birdseye plugin (`prefix+shift+b`) shows all agents in a live grid/column dashboard. Automations plugin (`prefix+a`) schedules recurring agent prompts on cron with a live board. Terminal-browser plugin (`prefix+t`) opens a real Chromium browser in a right split. Keep-awake toggle (`prefix+shift+a`) inhibits screen blanking/locking and system idle sleep (`keep-awake.sh` / `keep-awake.ps1`) with automatic cleanup when Herdr exits
 
 ### Neovim plugins
 
@@ -229,6 +231,16 @@ provides it, then verify with `stow --version`.
 
 Then re-run `./setup.sh` to deploy symlinks via `stow` (install `stow` first if missing).
 
+`setup.sh` also configures Git performance settings (including Windows filesystem cache and fsmonitor daemon) so `lazygit` and Neovim Git plugins stay fast:
+
+```bash
+git config --global core.preloadIndex true
+git config --global core.untrackedCache true
+git config --global feature.manyFiles true
+git config --global core.fscache true
+git config --global core.fsmonitor true
+```
+
 ---
 
 ## Repository structure
@@ -239,6 +251,13 @@ dotfiles/
 ├── setup.sh
 ├── zsh/
 │   └── .zshrc
+├── powershell/
+│   ├── .config/
+│   │   └── powershell/
+│   │       └── Microsoft.PowerShell_profile.ps1
+│   └── Documents/
+│       └── PowerShell/
+│           └── Microsoft.PowerShell_profile.ps1
 ├── tmux/
 │   ├── .tmux.conf
 │   ├── scripts/
@@ -309,12 +328,61 @@ dotfiles/
 ├── herdr/
     └── .config/
         └── herdr/
-            └── config.toml
+            ├── config.toml
+            └── scripts/
+                ├── keep-awake.ps1
+                └── keep-awake.sh
 └── wezterm/
     └── .config/
         └── wezterm/
             └── wezterm.lua
 ```
+
+---
+
+## PowerShell
+
+Cross-platform PowerShell 7 (`pwsh`) profile in `powershell/.config/powershell/Microsoft.PowerShell_profile.ps1`
+(on Windows, `setup.sh` also deploys a thin bootstrap loader to `$PROFILE.CurrentUserCurrentHost`, including OneDrive-redirected `Documents` folders).
+
+### Keybindings (`PSReadLine` + `fzf`)
+
+| Key | Action |
+| --- | ------ |
+| `Tab` / `Shift+Tab` | Interactive menu completion (`MenuComplete` / `TabCompletePrevious`) |
+| `RightArrow` / `Ctrl+f` | Accept full inline ghost suggestion at end of line |
+| `Alt+RightArrow` / `Alt+f` | Accept next word of inline suggestion (`AcceptNextSuggestionWord`) |
+| `F2` | Toggle prediction view between `InlineView` and dropdown `ListView` |
+| `UpArrow` / `Ctrl+p` | Prefix-filtered backward history search (`HistorySearchBackward`) |
+| `DownArrow` / `Ctrl+n` | Prefix-filtered forward history search (`HistorySearchForward`) |
+| `Ctrl+r` | Fuzzy command history search via `fzf` |
+| `Ctrl+t` | Fuzzy file finder (`fd` + `fzf -m`) inserted at cursor |
+| `Alt+c` | Fuzzy directory jump (`fd` + `fzf` + `Set-Location`) |
+| `Alt+.` | Insert last argument from previous command (`YankLastArg`) |
+| `Ctrl+d` | Delete character under cursor or exit empty shell (`DeleteCharOrExit`) |
+
+### Wrappers & Shortcuts
+
+- `y` — launches `yazi` and `cd`s to the selected directory on exit
+- `ls`, `ll`, `la`, `lt` — `eza` wrappers with icons and Git status (when `eza` is installed)
+- `catp` — `bat --paging=never` wrapper (keeps PowerShell's built-in `cat` alias intact for scripts)
+- `lg`, `v`, `c`, `..`, `...` — quick shortcuts for `lazygit`, `nvim`, `$CODES_DIR` (`~/Codes`), and parent directories
+- `which`, `touch`, `mkcd` — cross-platform shell utilities
+
+### Startup Cache & Profiling
+
+External CLI init scripts (`starship`, `zoxide`, `fnm`, `gh`, `carapace`) are cached in
+`~/.cache/powershell/<tool>-init.ps1` and automatically regenerated only when the binary's
+`LastWriteTimeUtc` is newer than the cache file.
+
+To inspect per-section startup timing:
+
+```powershell
+$env:PWSH_PROFILE_TIMING = 1
+pwsh -NoLogo -Command "exit"
+```
+
+Per-machine overrides go in `~/.profile.local.ps1` (untracked by git).
 
 ---
 

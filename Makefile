@@ -1,4 +1,4 @@
-PACKAGES = zsh tmux starship nvim yazi lazygit lazysql herdr wezterm
+PACKAGES = zsh powershell tmux starship nvim yazi lazygit lazysql herdr wezterm
 TARGET   = $(HOME)
 DOTFILES_DIR = $(shell pwd)
 CODES_DIR ?= $(HOME)/Codes
