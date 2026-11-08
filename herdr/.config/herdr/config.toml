@@ -2,6 +2,8 @@ onboarding = false
 
 [keys]
 open_worktree = "prefix+shift+o"
+previous_agent = "alt+["
+next_agent = "alt+]"
 
 [theme]
 name = "tokyo-night"
