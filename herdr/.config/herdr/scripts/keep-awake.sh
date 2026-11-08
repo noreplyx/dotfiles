@@ -61,38 +61,70 @@ if [[ "$PLATFORM" == "windows" ]]; then
   exec "$powershell_binary" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$windows_powershell_script_path" "${1:---toggle}"
 fi
 
-RUNTIME_STATE_DIR="${XDG_RUNTIME_DIR:-/tmp}"
-if [[ -z "${XDG_RUNTIME_DIR:-}" && -d "${HOME:-}/.cache" ]]; then
-  RUNTIME_STATE_DIR="${HOME}/.cache"
-fi
+RUNTIME_STATE_DIR="${HOME:-/tmp}/.cache"
 command mkdir -p "$RUNTIME_STATE_DIR" 2>/dev/null || {
-  RUNTIME_STATE_DIR="/tmp"
+  RUNTIME_STATE_DIR="${XDG_RUNTIME_DIR:-/tmp}"
   command mkdir -p "$RUNTIME_STATE_DIR" 2>/dev/null || true
 }
 
 STATE_FILE="${RUNTIME_STATE_DIR}/herdr-keep-awake"
 WATCHDOG_PID_FILE="${RUNTIME_STATE_DIR}/herdr-keep-awake.pid"
 INHIBITOR_PID_FILE="${RUNTIME_STATE_DIR}/herdr-keep-awake.child.pid"
+LOG_FILE="${RUNTIME_STATE_DIR}/herdr-keep-awake.log"
 
-write_state() {
-  local state="$1" temp_state_file mirror_destination_path
-  temp_state_file="$(command mktemp "${STATE_FILE}.tmp.XXXXXX" 2>/dev/null)" || temp_state_file=""
-  if [[ -n "$temp_state_file" ]]; then
-    if printf '%s\n' "$state" > "$temp_state_file" 2>/dev/null; then
-      mv -f "$temp_state_file" "$STATE_FILE" 2>/dev/null || rm -f "$temp_state_file" 2>/dev/null || true
+read_first_line_trimmed() {
+  local file_path="$1" line=""
+  [[ -f "$file_path" ]] || return 0
+  IFS=$' \t\r\n' read -r line < "$file_path" 2>/dev/null || true
+  printf '%s' "$line"
+}
+
+write_atomic_file() {
+  local target_path="$1"
+  local content="$2"
+  local temp_file=""
+  temp_file="$(command mktemp "${target_path}.tmp.XXXXXX" 2>/dev/null || true)"
+  if [[ -n "$temp_file" ]]; then
+    if printf '%s\n' "$content" > "$temp_file" 2>/dev/null; then
+      mv -f "$temp_file" "$target_path" 2>/dev/null || rm -f "$temp_file" 2>/dev/null || true
     else
-      rm -f "$temp_state_file" 2>/dev/null || true
+      rm -f "$temp_file" 2>/dev/null || true
     fi
   else
-    printf '%s\n' "$state" > "$STATE_FILE" 2>/dev/null || true
+    printf '%s\n' "$content" > "$target_path" 2>/dev/null || true
   fi
-  local mirror_targets=("${HOME:-}/.cache/herdr-keep-awake" "/tmp/herdr-keep-awake")
+}
+
+log_keep_awake_event() {
+  local level="$1"
+  local operation="$2"
+  local message="$3"
+  local log_size=0
+  if [[ -f "$LOG_FILE" ]]; then
+    if [[ "$PLATFORM" == "macos" ]]; then
+      log_size="$(stat -f %z "$LOG_FILE" 2>/dev/null || printf '0')"
+    else
+      log_size="$(stat -c %s "$LOG_FILE" 2>/dev/null || printf '0')"
+    fi
+    if [[ "$log_size" =~ ^[0-9]+$ ]] && (( log_size > 524288 )); then
+      mv -f "$LOG_FILE" "${LOG_FILE}.1" 2>/dev/null || true
+    fi
+  fi
+  printf '[%s] [%s] operation=%s pid=%s %s\n' \
+    "$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || printf 'unknown')" \
+    "$level" "$operation" "${BASHPID:-$$}" "$message" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+write_state() {
+  local state="$1" mirror_destination_path
+  write_atomic_file "$STATE_FILE" "$state"
+  local mirror_targets=("${HOME:-/tmp}/.cache/herdr-keep-awake" "/tmp/herdr-keep-awake")
   if [[ -n "${XDG_RUNTIME_DIR:-}" && -d "${XDG_RUNTIME_DIR}" ]]; then
     mirror_targets+=("${XDG_RUNTIME_DIR}/herdr-keep-awake")
   fi
   for mirror_destination_path in "${mirror_targets[@]}"; do
     [[ "$mirror_destination_path" == "$STATE_FILE" ]] && continue
-    printf '%s\n' "$state" > "$mirror_destination_path" 2>/dev/null || true
+    write_atomic_file "$mirror_destination_path" "$state"
   done
 }
 
@@ -136,25 +168,48 @@ has_inhibitor_backend() {
 }
 
 get_posix_herdr_pid() {
-  local pid="" user_name
+  local matched_herdr_pid="" user_name
   if command -v pgrep >/dev/null 2>&1; then
     user_name="${USER:-$(id -un 2>/dev/null || true)}"
     if [[ -n "$user_name" ]]; then
-      pid="$(pgrep -u "$user_name" -x herdr 2>/dev/null | head -n1 || true)"
+      matched_herdr_pid="$(pgrep -u "$user_name" -x herdr 2>/dev/null | head -n1 || true)"
     fi
-    if [[ -z "$pid" ]]; then
-      pid="$(pgrep -x herdr 2>/dev/null | head -n1 || true)"
+    if [[ -z "$matched_herdr_pid" ]]; then
+      matched_herdr_pid="$(pgrep -x herdr 2>/dev/null | head -n1 || true)"
     fi
-    if [[ -n "$pid" ]]; then
-      printf '%s' "$pid"
+    if [[ -z "$matched_herdr_pid" && -n "$user_name" ]]; then
+      matched_herdr_pid="$(pgrep -u "$user_name" -f '(^|/)herdr(\.exe)?([[:space:]]|$)' 2>/dev/null | head -n1 || true)"
+    fi
+    if [[ -z "$matched_herdr_pid" ]]; then
+      matched_herdr_pid="$(pgrep -f '(^|/)herdr(\.exe)?([[:space:]]|$)' 2>/dev/null | head -n1 || true)"
+    fi
+    if [[ -n "$matched_herdr_pid" ]]; then
+      printf '%s' "$matched_herdr_pid"
       return 0
     fi
   fi
   return 1
 }
 
+get_file_age_seconds() {
+  local target_file="$1"
+  [[ -f "$target_file" ]] || { printf '999999'; return 0; }
+  local now_epoch file_mtime_epoch
+  now_epoch="$(date +%s 2>/dev/null || printf '0')"
+  if [[ "$PLATFORM" == "macos" ]]; then
+    file_mtime_epoch="$(stat -f %m "$target_file" 2>/dev/null || printf '0')"
+  else
+    file_mtime_epoch="$(stat -c %Y "$target_file" 2>/dev/null || printf '0')"
+  fi
+  if [[ "$now_epoch" =~ ^[0-9]+$ && "$file_mtime_epoch" =~ ^[0-9]+$ ]] && (( now_epoch >= file_mtime_epoch )); then
+    printf '%s' "$(( now_epoch - file_mtime_epoch ))"
+  else
+    printf '0'
+  fi
+}
+
 is_pid_alive() {
-  local pid="$1"
+  local pid="${1#win:}"
   [[ -n "$pid" && "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null
 }
 
@@ -162,15 +217,25 @@ is_active() {
   if [[ ! -f "$WATCHDOG_PID_FILE" ]]; then
     return 1
   fi
-  local pid=""
-  pid="$(sed -n '1p' "$WATCHDOG_PID_FILE" 2>/dev/null | tr -d ' \t\r\n' || true)"
-  is_pid_alive "$pid"
+  local recorded_token=""
+  recorded_token="$(read_first_line_trimmed "$WATCHDOG_PID_FILE")"
+  if [[ "$recorded_token" == "starting" ]]; then
+    local file_age
+    file_age="$(get_file_age_seconds "$WATCHDOG_PID_FILE")"
+    (( file_age < 10 )) && return 0
+    return 1
+  fi
+  is_pid_alive "$recorded_token"
 }
 
 clear_stale_state() {
   if [[ -f "$WATCHDOG_PID_FILE" ]] && ! is_active; then
-    rm -f "$WATCHDOG_PID_FILE" "$INHIBITOR_PID_FILE" 2>/dev/null || true
-    write_state "OFF"
+    local file_age
+    file_age="$(get_file_age_seconds "$WATCHDOG_PID_FILE")"
+    if (( file_age >= 2 )); then
+      rm -f "$WATCHDOG_PID_FILE" "$INHIBITOR_PID_FILE" 2>/dev/null || true
+      write_state "OFF"
+    fi
   fi
 }
 
@@ -186,18 +251,20 @@ notify_user() {
 }
 
 stop_inhibitor() {
-  local watchdog_pid="" child_pid=""
+  local watchdog_pid="" inhibitor_child_pid=""
   if [[ -f "$WATCHDOG_PID_FILE" ]]; then
-    watchdog_pid="$(sed -n '1p' "$WATCHDOG_PID_FILE" 2>/dev/null | tr -d ' \t\r\n' || true)"
+    watchdog_pid="$(read_first_line_trimmed "$WATCHDOG_PID_FILE")"
+    watchdog_pid="${watchdog_pid#win:}"
   fi
   if [[ -f "$INHIBITOR_PID_FILE" ]]; then
-    child_pid="$(sed -n '1p' "$INHIBITOR_PID_FILE" 2>/dev/null | tr -d ' \t\r\n' || true)"
+    inhibitor_child_pid="$(read_first_line_trimmed "$INHIBITOR_PID_FILE")"
+    inhibitor_child_pid="${inhibitor_child_pid#win:}"
   fi
 
   rm -f "$WATCHDOG_PID_FILE" "$INHIBITOR_PID_FILE" 2>/dev/null || true
 
-  if is_pid_alive "$child_pid"; then
-    kill -TERM "$child_pid" 2>/dev/null || true
+  if is_pid_alive "$inhibitor_child_pid"; then
+    kill -TERM "$inhibitor_child_pid" 2>/dev/null || true
   fi
   if is_pid_alive "$watchdog_pid"; then
     if command -v pkill >/dev/null 2>&1; then
@@ -215,7 +282,17 @@ run_watchdog() {
   local dbus_cookie=""
   local watchdog_self_pid="${BASHPID:-$$}"
 
-  printf '%s\n' "$watchdog_self_pid" > "$WATCHDOG_PID_FILE" 2>/dev/null || true
+  local initial_state=""
+  if [[ -f "$STATE_FILE" ]]; then
+    initial_state="$(read_first_line_trimmed "$STATE_FILE")"
+  fi
+  if [[ "$initial_state" == [Oo][Ff][Ff] || ! -f "$WATCHDOG_PID_FILE" ]]; then
+    log_keep_awake_event "INFO" "watchdog_aborted_off" "keep-awake already OFF before watchdog loop"
+    exit 0
+  fi
+
+  write_atomic_file "$WATCHDOG_PID_FILE" "$watchdog_self_pid"
+  log_keep_awake_event "INFO" "watchdog_started" "startedWithHerdr=${started_with_herdr} herdrPid=${herdr_pid}"
 
   cleanup_watchdog() {
     trap - EXIT INT TERM HUP
@@ -226,18 +303,25 @@ run_watchdog() {
         --method org.freedesktop.ScreenSaver.UnInhibit \
         "$dbus_cookie" >/dev/null 2>&1 || true
     fi
-    if [[ -f "$INHIBITOR_PID_FILE" ]]; then
-      local recorded_child
-      recorded_child="$(sed -n '1p' "$INHIBITOR_PID_FILE" 2>/dev/null | tr -d ' \t\r\n' || true)"
-      if is_pid_alive "$recorded_child"; then
-        kill -TERM "$recorded_child" 2>/dev/null || true
-      fi
-    fi
     if is_pid_alive "$inhibitor_pid"; then
       kill -TERM "$inhibitor_pid" 2>/dev/null || true
     fi
-    rm -f "$WATCHDOG_PID_FILE" "$INHIBITOR_PID_FILE" 2>/dev/null || true
-    write_state "OFF"
+    local current_owner=""
+    if [[ -f "$WATCHDOG_PID_FILE" ]]; then
+      current_owner="$(read_first_line_trimmed "$WATCHDOG_PID_FILE")"
+    fi
+    if [[ "$current_owner" == "$watchdog_self_pid" ]]; then
+      if [[ -f "$INHIBITOR_PID_FILE" ]]; then
+        local recorded_child
+        recorded_child="$(read_first_line_trimmed "$INHIBITOR_PID_FILE")"
+        if is_pid_alive "$recorded_child"; then
+          kill -TERM "$recorded_child" 2>/dev/null || true
+        fi
+      fi
+      rm -f "$WATCHDOG_PID_FILE" "$INHIBITOR_PID_FILE" 2>/dev/null || true
+      write_state "OFF"
+    fi
+    log_keep_awake_event "INFO" "watchdog_stopped" "owner=${current_owner}"
     exit 0
   }
 
@@ -284,10 +368,22 @@ run_watchdog() {
   fi
 
   if [[ -n "$inhibitor_pid" ]]; then
-    printf '%s\n' "$inhibitor_pid" > "$INHIBITOR_PID_FILE" 2>/dev/null || true
+    write_atomic_file "$INHIBITOR_PID_FILE" "$inhibitor_pid"
   fi
 
   while [[ -f "$WATCHDOG_PID_FILE" ]]; do
+    local current_state=""
+    if [[ -f "$STATE_FILE" ]]; then
+      current_state="$(read_first_line_trimmed "$STATE_FILE")"
+    fi
+    if [[ "$current_state" == [Oo][Ff][Ff] ]]; then
+      break
+    fi
+    local recorded_owner=""
+    recorded_owner="$(read_first_line_trimmed "$WATCHDOG_PID_FILE")"
+    if [[ -n "$recorded_owner" && "$recorded_owner" != "starting" && "$recorded_owner" != "$watchdog_self_pid" ]]; then
+      break
+    fi
     if [[ -n "$inhibitor_pid" ]] && ! is_pid_alive "$inhibitor_pid"; then
       break
     fi
@@ -308,11 +404,26 @@ run_watchdog() {
   cleanup_watchdog
 }
 
+start_background_watchdog() {
+  local started_with_herdr="$1"
+  local initial_herdr_pid="${2:-}"
+  write_atomic_file "$WATCHDOG_PID_FILE" "starting"
+  (
+    nohup "${BASH_SOURCE[0]}" --watchdog "$started_with_herdr" "$initial_herdr_pid" </dev/null >/dev/null 2>&1 &
+  ) 2>/dev/null || {
+    (
+      run_watchdog "$started_with_herdr" "$initial_herdr_pid"
+    ) </dev/null >/dev/null 2>&1 &
+    local fallback_pid=$!
+    disown "$fallback_pid" 2>/dev/null || true
+  }
+}
+
 enable_keep_awake() {
   clear_stale_state
   if is_active; then
     write_state "ON"
-    notify_user "ON"
+    (notify_user "ON") </dev/null >/dev/null 2>&1 &
     printf 'ON\n'
     return 0
   fi
@@ -332,22 +443,16 @@ enable_keep_awake() {
   fi
 
   write_state "ON"
-  notify_user "ON"
-
-  (
-    run_watchdog "$started_with_herdr" "$initial_herdr_pid"
-  ) </dev/null >/dev/null 2>&1 &
-  local watchdog_pid=$!
-  printf '%s\n' "$watchdog_pid" > "$WATCHDOG_PID_FILE" 2>/dev/null || true
-  disown "$watchdog_pid" 2>/dev/null || true
+  start_background_watchdog "$started_with_herdr" "$initial_herdr_pid"
+  (notify_user "ON") </dev/null >/dev/null 2>&1 &
 
   printf 'ON\n'
 }
 
 disable_keep_awake() {
-  write_state "OFF"
-  notify_user "OFF"
   stop_inhibitor
+  write_state "OFF"
+  (notify_user "OFF") </dev/null >/dev/null 2>&1 &
   printf 'OFF\n'
 }
 
@@ -363,14 +468,33 @@ print_keep_awake_status() {
 }
 
 print_keep_awake_badge() {
-  clear_stale_state
   local cached_state=""
   if [[ -f "$STATE_FILE" ]]; then
-    cached_state="$(sed -n '1p' "$STATE_FILE" 2>/dev/null | tr -d ' \t\r\n' | tr '[:lower:]' '[:upper:]' || true)"
+    cached_state="$(read_first_line_trimmed "$STATE_FILE")"
   fi
-  if [[ "$cached_state" == "ON" ]] || is_active; then
+  if [[ "$cached_state" == [Oo][Nn] ]]; then
+    if is_active; then
+      printf 'AWAKE: ON\n'
+      return 0
+    fi
+    local herdr_pid=""
+    herdr_pid="$(get_posix_herdr_pid || true)"
+    if [[ -n "$herdr_pid" ]] && has_inhibitor_backend; then
+      log_keep_awake_event "INFO" "badge_self_heal" "restarting dead watchdog for herdrPid=${herdr_pid}"
+      start_background_watchdog 1 "$herdr_pid"
+      printf 'AWAKE: ON\n'
+      return 0
+    fi
+    rm -f "$WATCHDOG_PID_FILE" "$INHIBITOR_PID_FILE" 2>/dev/null || true
+    write_state "OFF"
+    printf 'AWAKE: OFF\n'
+    return 0
+  fi
+  if [[ -z "$cached_state" ]] && is_active; then
+    write_state "ON"
     printf 'AWAKE: ON\n'
   else
+    clear_stale_state
     printf 'AWAKE: OFF\n'
   fi
 }
@@ -396,6 +520,9 @@ case "$action" in
     ;;
   --badge)
     print_keep_awake_badge
+    ;;
+  --watchdog)
+    run_watchdog "${2:-0}" "${3:-}"
     ;;
   *)
     printf 'usage: keep-awake.sh [--toggle|--on|--off|--status|--badge]\n' >&2

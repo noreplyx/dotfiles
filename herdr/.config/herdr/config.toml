@@ -29,7 +29,7 @@ description = "open terminal-browser (right split)"
 [[keys.command]]
 key = "prefix+shift+a"
 type = "shell"
-command = "powershell -WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& \\\"$HOME/.config/herdr/scripts/keep-awake.ps1\\\" --toggle\" || ~/.config/herdr/scripts/keep-awake.sh --toggle"
+command = "powershell -NoLogo -WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& \\\"$HOME/.config/herdr/scripts/keep-awake.ps1\\\" --toggle\" || ~/.config/herdr/scripts/keep-awake.sh --toggle"
 description = "toggle screen keep-awake"
 
 [[keys.command]]
@@ -44,6 +44,6 @@ kitty_graphics = true
 [ui]
 tab_bar_right = [
   { type = "command", command = "powershell -WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& \\\"$HOME/.config/herdr/plugins/dev-servers/scripts/dev-servers.ps1\\\" --badge\" || ~/.config/herdr/plugins/dev-servers/scripts/dev-servers.sh --badge", interval_seconds = 2, timeout_seconds = 5 },
-  { type = "command", command = "powershell -WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& \\\"$HOME/.config/herdr/scripts/keep-awake.ps1\\\" --badge\" || ~/.config/herdr/scripts/keep-awake.sh --badge", interval_seconds = 1, timeout_seconds = 2 },
+  { type = "command", command = "powershell -NoLogo -WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& \\\"$HOME/.config/herdr/scripts/keep-awake.ps1\\\" --badge\" || ~/.config/herdr/scripts/keep-awake.sh --badge", interval_seconds = 2, timeout_seconds = 5 },
   { type = "zoom" },
 ]

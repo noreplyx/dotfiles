@@ -10,19 +10,7 @@ if (-not (Test-Path -LiteralPath $cacheDir)) {
 }
 $stateFile = Join-Path $cacheDir "herdr-keep-awake"
 $watchdogPidFile = Join-Path $cacheDir "herdr-keep-awake.pid"
-
-if ($args.Count -ge 1 -and [string]$args[0] -eq "--badge") {
-  if ([System.IO.File]::Exists($stateFile) -and [System.IO.File]::Exists($watchdogPidFile)) {
-    try {
-      if (([System.IO.File]::ReadAllText($stateFile)).Trim().ToUpperInvariant() -eq "ON") {
-        Write-Output "AWAKE: ON"
-        exit 0
-      }
-    } catch {}
-  }
-  Write-Output "AWAKE: OFF"
-  exit 0
-}
+$logFilePath = Join-Path $cacheDir "herdr-keep-awake.log"
 
 function Write-AtomicTextFile {
   param(
@@ -46,9 +34,219 @@ function Write-AtomicTextFile {
   }
 }
 
+function Read-TextFileTrimmedWithRetry {
+  param(
+    [Parameter(Mandatory = $true)][string]$TargetPath,
+    [int]$MaxAttempts = 3,
+    [int]$RetryDelayMilliseconds = 15
+  )
+  for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+    if (-not [System.IO.File]::Exists($TargetPath)) {
+      return $null
+    }
+    try {
+      return ([System.IO.File]::ReadAllText($TargetPath)).Trim()
+    } catch {
+      if ($attempt -lt $MaxAttempts) {
+        Start-Sleep -Milliseconds $RetryDelayMilliseconds
+      }
+    }
+  }
+  return $null
+}
+
+function Write-KeepAwakeLog {
+  param(
+    [Parameter(Mandatory = $true)][string]$Level,
+    [Parameter(Mandatory = $true)][string]$Operation,
+    [Parameter(Mandatory = $true)][string]$Message
+  )
+  try {
+    if ([System.IO.File]::Exists($logFilePath)) {
+      $logFileInfo = [System.IO.FileInfo]::new($logFilePath)
+      if ($logFileInfo.Length -gt 524288) {
+        $rotatedLogFilePath = "$logFilePath.1"
+        Remove-Item -LiteralPath $rotatedLogFilePath -Force -ErrorAction SilentlyContinue
+        Move-Item -LiteralPath $logFilePath -Destination $rotatedLogFilePath -Force -ErrorAction SilentlyContinue
+      }
+    }
+    $timestampIso = [DateTime]::UtcNow.ToString("o")
+    $logLine = "[$timestampIso] [$Level] operation=$Operation pid=$PID $Message`n"
+    [System.IO.File]::AppendAllText($logFilePath, $logLine, [System.Text.UTF8Encoding]::new($false))
+  } catch {}
+}
+
 function Write-KeepAwakeState {
   param([string]$State)
   Write-AtomicTextFile -TargetPath $stateFile -Content "$State`n"
+}
+
+function Get-ActiveDaemonProcess {
+  param([int]$KnownProcessId = 0)
+  $parsedProcessId = $KnownProcessId
+  if ($parsedProcessId -le 0) {
+    $rawProcessId = Read-TextFileTrimmedWithRetry -TargetPath $watchdogPidFile
+    if ([string]::IsNullOrWhiteSpace($rawProcessId) -or $rawProcessId -eq "starting") {
+      return $null
+    }
+    if ($rawProcessId.StartsWith("win:")) {
+      $rawProcessId = $rawProcessId.Substring(4).Trim()
+    }
+    if (-not [int]::TryParse($rawProcessId, [ref]$parsedProcessId) -or $parsedProcessId -le 0) {
+      return $null
+    }
+  }
+  $daemonProcess = Get-Process -Id $parsedProcessId -ErrorAction SilentlyContinue
+  if ($null -ne $daemonProcess -and $daemonProcess.ProcessName -in @('powershell', 'pwsh')) {
+    return $daemonProcess
+  }
+  return $null
+}
+
+function Test-KeepAwakeActive {
+  if (-not [System.IO.File]::Exists($watchdogPidFile)) {
+    return $false
+  }
+  $rawDaemonToken = Read-TextFileTrimmedWithRetry -TargetPath $watchdogPidFile
+  if ([string]::IsNullOrWhiteSpace($rawDaemonToken)) {
+    return $false
+  }
+  if ($rawDaemonToken -eq "starting") {
+    try {
+      if (([DateTime]::UtcNow - [System.IO.File]::GetLastWriteTimeUtc($watchdogPidFile)).TotalSeconds -lt 10) {
+        return $true
+      }
+    } catch {}
+    return $false
+  }
+  return $null -ne (Get-ActiveDaemonProcess)
+}
+
+function Test-HerdrProcessRunning {
+  return $null -ne (Get-Process -Name "herdr*" -ErrorAction SilentlyContinue)
+}
+
+function Start-DetachedKeepAwakeDaemon {
+  param([string]$StartedWithHerdrFlag = "1")
+  Write-AtomicTextFile -TargetPath $watchdogPidFile -Content "starting`n"
+  Write-KeepAwakeLog -Level "INFO" -Operation "daemon_spawn_requested" -Message "startedWithHerdr=$StartedWithHerdrFlag"
+
+  $powerShellExecutable = Join-Path $PSHOME "powershell.exe"
+  if (-not (Test-Path -LiteralPath $powerShellExecutable)) {
+    $currentProcessPath = (Get-Process -Id $PID -ErrorAction SilentlyContinue).Path
+    if ($currentProcessPath -and (Test-Path -LiteralPath $currentProcessPath)) {
+      $powerShellExecutable = $currentProcessPath
+    } else {
+      $powerShellExecutable = "powershell.exe"
+    }
+  }
+
+  $isDaemonSpawned = $false
+  $spawnedProcessId = 0
+  $escapedPowerShellExecutablePath = $powerShellExecutable.Replace('"', '\"')
+  $escapedScriptPath = $PSCommandPath.Replace('"', '\"')
+  $daemonCommandLine = "`"$escapedPowerShellExecutablePath`" -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$escapedScriptPath`" --daemon $StartedWithHerdrFlag"
+
+  try {
+    $startupInstance = ([wmiclass]"Win32_ProcessStartup").CreateInstance()
+    $startupInstance.ShowWindow = [uint16]0
+    $processClass = [wmiclass]"Win32_Process"
+    $createParameters = $processClass.GetMethodParameters("Create")
+    $createParameters["CommandLine"] = $daemonCommandLine
+    $createParameters["CurrentDirectory"] = $homeDir
+    $createParameters["ProcessStartupInformation"] = $startupInstance
+    $wmiCreateResult = $processClass.InvokeMethod("Create", $createParameters, $null)
+    if ($null -ne $wmiCreateResult -and [uint32]$wmiCreateResult["ReturnValue"] -eq 0 -and $wmiCreateResult["ProcessId"]) {
+      $spawnedProcessId = [int]$wmiCreateResult["ProcessId"]
+      $isDaemonSpawned = $true
+      Write-KeepAwakeLog -Level "INFO" -Operation "daemon_spawn_wmi" -Message "spawnedPid=$spawnedProcessId"
+    }
+  } catch {}
+
+  if (-not $isDaemonSpawned) {
+    try {
+      $startupInformation = New-CimInstance -ClassName Win32_ProcessStartup -Property @{ ShowWindow = [uint16]0 } -ClientOnly
+      $createResult = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+        CommandLine               = $daemonCommandLine
+        CurrentDirectory          = $homeDir
+        ProcessStartupInformation = $startupInformation
+      } -ErrorAction Stop
+      if ($null -ne $createResult -and [uint32]$createResult.ReturnValue -eq 0 -and $createResult.ProcessId) {
+        $spawnedProcessId = [int]$createResult.ProcessId
+        $isDaemonSpawned = $true
+        Write-KeepAwakeLog -Level "INFO" -Operation "daemon_spawn_cim" -Message "spawnedPid=$spawnedProcessId"
+      }
+    } catch {
+      Write-KeepAwakeLog -Level "WARN" -Operation "daemon_spawn_cim" -Message "error=$($_.Exception.Message)"
+    }
+  }
+
+  if (-not $isDaemonSpawned) {
+    try {
+      $daemonProcess = Start-Process -FilePath $powerShellExecutable -WorkingDirectory $homeDir -WindowStyle Hidden -PassThru -ArgumentList @(
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "`"$PSCommandPath`"",
+        "--daemon",
+        $StartedWithHerdrFlag
+      ) -ErrorAction Stop
+      if ($null -ne $daemonProcess -and $daemonProcess.Id -gt 0) {
+        $spawnedProcessId = [int]$daemonProcess.Id
+        $isDaemonSpawned = $true
+        Write-KeepAwakeLog -Level "INFO" -Operation "daemon_spawn_startprocess" -Message "spawnedPid=$spawnedProcessId"
+      }
+    } catch {
+      Write-KeepAwakeLog -Level "WARN" -Operation "daemon_spawn_startprocess" -Message "error=$($_.Exception.Message)"
+    }
+  }
+
+  if ($isDaemonSpawned -and $spawnedProcessId -gt 0) {
+    Write-AtomicTextFile -TargetPath $watchdogPidFile -Content "win:$spawnedProcessId`n"
+    return $true
+  }
+
+  Remove-Item -LiteralPath $watchdogPidFile -Force -ErrorAction SilentlyContinue
+  return $false
+}
+
+function Clear-StaleKeepAwakeState {
+  if ((Test-Path -LiteralPath $watchdogPidFile) -and -not (Test-KeepAwakeActive)) {
+    Remove-Item -LiteralPath $watchdogPidFile -Force -ErrorAction SilentlyContinue
+    Write-KeepAwakeState "OFF"
+  }
+}
+
+# Fast-path status badge (<15ms; validates daemon liveness and self-heals when Herdr is running).
+if ($args.Count -ge 1 -and [string]$args[0] -eq "--badge") {
+  $cachedStateText = Read-TextFileTrimmedWithRetry -TargetPath $stateFile
+  $normalizedState = if ($null -ne $cachedStateText) { $cachedStateText.ToUpperInvariant() } else { "" }
+  if ($normalizedState -eq "ON") {
+    if (Test-KeepAwakeActive) {
+      Write-Output "AWAKE: ON"
+      exit 0
+    }
+    if (Test-HerdrProcessRunning) {
+      Write-KeepAwakeLog -Level "INFO" -Operation "badge_self_heal" -Message "restarting dead keep-awake daemon while Herdr is running"
+      if (Start-DetachedKeepAwakeDaemon -StartedWithHerdrFlag "1") {
+        Write-Output "AWAKE: ON"
+        exit 0
+      }
+    }
+    Remove-Item -LiteralPath $watchdogPidFile -Force -ErrorAction SilentlyContinue
+    Write-KeepAwakeState "OFF"
+  } elseif ([string]::IsNullOrWhiteSpace($normalizedState) -and (Test-KeepAwakeActive)) {
+    Write-KeepAwakeState "ON"
+    Write-Output "AWAKE: ON"
+    exit 0
+  } else {
+    Clear-StaleKeepAwakeState
+  }
+  Write-Output "AWAKE: OFF"
+  exit 0
 }
 
 function Resolve-HerdrBinary {
@@ -72,62 +270,6 @@ function Resolve-HerdrBinary {
     return $binPath
   }
   return $null
-}
-
-function Get-ActiveDaemonProcess {
-  param([int]$KnownProcessId = 0)
-  $parsedProcessId = $KnownProcessId
-  if ($parsedProcessId -le 0) {
-    if (-not (Test-Path -LiteralPath $watchdogPidFile)) {
-      return $null
-    }
-    $rawProcessId = ""
-    try {
-      $firstLine = Get-Content -LiteralPath $watchdogPidFile -TotalCount 1 -ErrorAction SilentlyContinue
-      if ($null -ne $firstLine) {
-        $rawProcessId = ([string]$firstLine).Trim()
-      }
-    } catch {
-      return $null
-    }
-    if ($rawProcessId.StartsWith("win:")) {
-      $rawProcessId = $rawProcessId.Substring(4).Trim()
-    }
-    if (-not [int]::TryParse($rawProcessId, [ref]$parsedProcessId) -or $parsedProcessId -le 0) {
-      return $null
-    }
-  }
-  $daemonProcess = Get-Process -Id $parsedProcessId -ErrorAction SilentlyContinue
-  if ($null -ne $daemonProcess -and $daemonProcess.ProcessName -in @('powershell', 'pwsh')) {
-    return $daemonProcess
-  }
-  return $null
-}
-
-function Test-KeepAwakeActive {
-  return $null -ne (Get-ActiveDaemonProcess)
-}
-
-function Clear-StaleKeepAwakeState {
-  if ((Test-Path -LiteralPath $watchdogPidFile) -and -not (Test-KeepAwakeActive)) {
-    Remove-Item -LiteralPath $watchdogPidFile -Force -ErrorAction SilentlyContinue
-    Write-KeepAwakeState "OFF"
-  }
-}
-
-function Get-KeepAwakeBadgeText {
-  Clear-StaleKeepAwakeState
-  if (Test-Path -LiteralPath $stateFile) {
-    try {
-      if (([System.IO.File]::ReadAllText($stateFile)).Trim().ToUpperInvariant() -eq "ON") {
-        return "AWAKE: ON"
-      }
-    } catch {}
-  }
-  if (Test-KeepAwakeActive) {
-    return "AWAKE: ON"
-  }
-  return "AWAKE: OFF"
 }
 
 function Clear-LeftoverWorkspaceBadges {
@@ -196,27 +338,32 @@ function Wait-SentinelHoldInterval([string]$SentinelPath) {
 
 function Invoke-KeepAwakeDaemon {
   param([string]$StartedWithHerdrFlag)
-  $startedWithHerdr = ($StartedWithHerdrFlag -eq "1")
+  $initialStateText = Read-TextFileTrimmedWithRetry -TargetPath $stateFile
+  if (($null -ne $initialStateText -and $initialStateText.ToUpperInvariant() -eq "OFF") -or -not [System.IO.File]::Exists($watchdogPidFile)) {
+    Write-KeepAwakeLog -Level "INFO" -Operation "daemon_aborted_off" -Message "keep-awake already OFF before daemon loop"
+    return
+  }
+  $hasObservedHerdrProcess = ($StartedWithHerdrFlag -eq "1") -or (Test-HerdrProcessRunning)
+  Write-AtomicTextFile -TargetPath $watchdogPidFile -Content "win:$PID`n"
+  Write-KeepAwakeLog -Level "INFO" -Operation "daemon_started" -Message "startedWithHerdrFlag=$StartedWithHerdrFlag hasObservedHerdr=$hasObservedHerdrProcess"
   $powerType = Get-PowerExecutionStateType
   try {
     while ([System.IO.File]::Exists($watchdogPidFile)) {
-      $currentToken = ""
-      try {
-        $currentToken = ([System.IO.File]::ReadAllText($watchdogPidFile)).Trim()
-      } catch {}
-      if ($currentToken -ne "starting" -and $currentToken -ne "win:$PID") {
+      $currentStateText = Read-TextFileTrimmedWithRetry -TargetPath $stateFile
+      if ($null -ne $currentStateText -and $currentStateText.ToUpperInvariant() -eq "OFF") {
+        Write-KeepAwakeLog -Level "INFO" -Operation "daemon_state_off" -Message "state file set to OFF"
         break
       }
-      if ($startedWithHerdr -and -not (Get-Process -Name "herdr" -ErrorAction SilentlyContinue)) {
-        if ([System.IO.File]::Exists($watchdogPidFile)) {
-          try {
-            $latestToken = ([System.IO.File]::ReadAllText($watchdogPidFile)).Trim()
-            if ($latestToken -eq "win:$PID" -or $latestToken -eq "$PID") {
-              Remove-Item -LiteralPath $watchdogPidFile -Force -ErrorAction SilentlyContinue
-              Write-KeepAwakeState "OFF"
-            }
-          } catch {}
-        }
+      $currentToken = Read-TextFileTrimmedWithRetry -TargetPath $watchdogPidFile
+      if (-not [string]::IsNullOrWhiteSpace($currentToken) -and $currentToken -ne "starting" -and $currentToken -ne "win:$PID" -and $currentToken -ne "$PID") {
+        Write-KeepAwakeLog -Level "INFO" -Operation "daemon_superseded" -Message "currentToken=$currentToken"
+        break
+      }
+      if (-not $hasObservedHerdrProcess -and (Test-HerdrProcessRunning)) {
+        $hasObservedHerdrProcess = $true
+      }
+      if ($hasObservedHerdrProcess -and -not (Test-HerdrProcessRunning)) {
+        Write-KeepAwakeLog -Level "INFO" -Operation "daemon_herdr_exited" -Message "all herdr processes exited"
         break
       }
       $powerType::Hold()
@@ -224,6 +371,14 @@ function Invoke-KeepAwakeDaemon {
     }
   } finally {
     $powerType::Release()
+    if ([System.IO.File]::Exists($watchdogPidFile)) {
+      $latestToken = Read-TextFileTrimmedWithRetry -TargetPath $watchdogPidFile
+      if ($latestToken -eq "win:$PID" -or $latestToken -eq "$PID") {
+        Remove-Item -LiteralPath $watchdogPidFile -Force -ErrorAction SilentlyContinue
+        Write-KeepAwakeState "OFF"
+      }
+    }
+    Write-KeepAwakeLog -Level "INFO" -Operation "daemon_stopped" -Message "released execution state"
   }
 }
 
@@ -252,16 +407,17 @@ function Enable-KeepAwake {
     return
   }
 
-  $startedWithHerdrFlag = if (Get-Process -Name "herdr" -ErrorAction SilentlyContinue) { "1" } else { "0" }
+  $startedWithHerdrFlag = if (Test-HerdrProcessRunning) { "1" } else { "0" }
   Write-KeepAwakeState "ON"
-  Write-AtomicTextFile -TargetPath $watchdogPidFile -Content "starting`n"
+  if (-not (Start-DetachedKeepAwakeDaemon -StartedWithHerdrFlag $startedWithHerdrFlag)) {
+    Write-KeepAwakeState "OFF"
+    if (Test-Path -LiteralPath $watchdogPidFile) {
+      Remove-Item -LiteralPath $watchdogPidFile -Force -ErrorAction SilentlyContinue
+    }
+    Write-Output "OFF"
+    exit 1
+  }
   Send-KeepAwakeNotification "ON"
-
-  $powerShellExecutablePath = (Get-Process -Id $PID).Path
-  if (-not $powerShellExecutablePath) { $powerShellExecutablePath = "powershell.exe" }
-  $daemonProcess = Start-Process -FilePath $powerShellExecutablePath -WorkingDirectory $homeDir -WindowStyle Hidden -ArgumentList @("-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", $PSCommandPath, "--daemon", $startedWithHerdrFlag) -PassThru
-
-  Write-AtomicTextFile -TargetPath $watchdogPidFile -Content "win:$($daemonProcess.Id)`n"
   Write-Output "ON"
 }
 
@@ -271,6 +427,7 @@ function Disable-KeepAwake {
     Remove-Item -LiteralPath $watchdogPidFile -Force -ErrorAction SilentlyContinue
   }
   Write-KeepAwakeState "OFF"
+  Write-KeepAwakeLog -Level "INFO" -Operation "keep_awake_disabled" -Message "targetPid=$(if ($daemonProcess) { $daemonProcess.Id } else { 0 })"
   Send-KeepAwakeNotification "OFF"
   if ($null -ne $daemonProcess) {
     $targetProcessId = $daemonProcess.Id
@@ -314,12 +471,9 @@ switch ($action) {
       Write-Output "OFF"
     }
   }
-  "--badge" {
-    Write-Output (Get-KeepAwakeBadgeText)
-  }
   "--daemon" {
-    $herdrFlag = if ($args.Count -ge 2) { [string]$args[1] } else { "0" }
-    Invoke-KeepAwakeDaemon -StartedWithHerdrFlag $herdrFlag
+    $startedWithHerdrFlag = if ($args.Count -ge 2) { [string]$args[1] } else { "0" }
+    Invoke-KeepAwakeDaemon -StartedWithHerdrFlag $startedWithHerdrFlag
   }
   "--hold-sentinel" {
     $sentinelPath = if ($args.Count -ge 2) { [string]$args[1] } else { "" }

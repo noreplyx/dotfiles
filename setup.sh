@@ -406,6 +406,20 @@ install_lazysql() {
   esac
 }
 
+sync_herdr_target_dir() {
+  local target_dir="$1"
+  mkdir -p "$target_dir" 2>/dev/null || true
+  ln -sf "$DOTFILES_DIR/herdr/.config/herdr/config.toml" "$target_dir/config.toml" 2>/dev/null \
+    || cp -f "$DOTFILES_DIR/herdr/.config/herdr/config.toml" "$target_dir/config.toml" 2>/dev/null || true
+  if [[ ! -e "$target_dir/scripts" ]]; then
+    ln -s "$DOTFILES_DIR/herdr/.config/herdr/scripts" "$target_dir/scripts" 2>/dev/null \
+      || { mkdir -p "$target_dir/scripts" && cp -rf "$DOTFILES_DIR/herdr/.config/herdr/scripts/." "$target_dir/scripts/"; } 2>/dev/null || true
+  elif [[ ! -L "$target_dir/scripts" ]]; then
+    cp -rf "$DOTFILES_DIR/herdr/.config/herdr/scripts/." "$target_dir/scripts/" 2>/dev/null || true
+  fi
+  chmod +x "$target_dir/scripts/keep-awake.sh" 2>/dev/null || true
+}
+
 install_herdr() {
   chmod +x "$DOTFILES_DIR/herdr/.config/herdr/scripts/keep-awake.sh" \
     "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers/bin/herdr-dev-servers" \
@@ -415,26 +429,18 @@ install_herdr() {
     if [[ -n "${APPDATA:-}" ]]; then
       local appdata_dir="$APPDATA"
       command_exists cygpath && appdata_dir="$(cygpath -u "$APPDATA")"
-      mkdir -p "$appdata_dir/herdr" 2>/dev/null || true
-      ln -sf "$DOTFILES_DIR/herdr/.config/herdr/config.toml" "$appdata_dir/herdr/config.toml" 2>/dev/null || cp -f "$DOTFILES_DIR/herdr/.config/herdr/config.toml" "$appdata_dir/herdr/config.toml" 2>/dev/null || true
+      sync_herdr_target_dir "$appdata_dir/herdr"
     fi
     local user_herdr_config_dir="$HOME/.config/herdr"
     mkdir -p "$user_herdr_config_dir/plugins" 2>/dev/null || true
-    ln -sf "$DOTFILES_DIR/herdr/.config/herdr/config.toml" "$user_herdr_config_dir/config.toml" 2>/dev/null || cp -f "$DOTFILES_DIR/herdr/.config/herdr/config.toml" "$user_herdr_config_dir/config.toml" 2>/dev/null || true
-    if [[ ! -e "$user_herdr_config_dir/scripts" ]]; then
-      ln -s "$DOTFILES_DIR/herdr/.config/herdr/scripts" "$user_herdr_config_dir/scripts" 2>/dev/null \
-        || { mkdir -p "$user_herdr_config_dir/scripts" && cp -rf "$DOTFILES_DIR/herdr/.config/herdr/scripts/." "$user_herdr_config_dir/scripts/"; } 2>/dev/null || true
-    elif [[ ! -L "$user_herdr_config_dir/scripts" ]]; then
-      cp -rf "$DOTFILES_DIR/herdr/.config/herdr/scripts/." "$user_herdr_config_dir/scripts/" 2>/dev/null || true
-    fi
+    sync_herdr_target_dir "$user_herdr_config_dir"
     if [[ ! -e "$user_herdr_config_dir/plugins/dev-servers" ]]; then
       ln -s "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers" "$user_herdr_config_dir/plugins/dev-servers" 2>/dev/null \
         || { mkdir -p "$user_herdr_config_dir/plugins/dev-servers" && cp -rf "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers/." "$user_herdr_config_dir/plugins/dev-servers/"; } 2>/dev/null || true
     elif [[ ! -L "$user_herdr_config_dir/plugins/dev-servers" ]]; then
       cp -rf "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers/." "$user_herdr_config_dir/plugins/dev-servers/" 2>/dev/null || true
     fi
-    chmod +x "$user_herdr_config_dir/scripts/keep-awake.sh" \
-      "$user_herdr_config_dir/plugins/dev-servers/bin/herdr-dev-servers" \
+    chmod +x "$user_herdr_config_dir/plugins/dev-servers/bin/herdr-dev-servers" \
       "$user_herdr_config_dir/plugins/dev-servers/scripts/dev-servers.sh" \
       "$user_herdr_config_dir/plugins/dev-servers/scripts/dev-servers-tui.sh" 2>/dev/null || true
   fi
