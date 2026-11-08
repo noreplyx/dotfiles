@@ -183,6 +183,53 @@ if [[ "$(uname -s 2>/dev/null)" != "Darwin" ]] && command -v gsettings >/dev/nul
   fi
 fi
 
+# Herdr shell PID-to-pane telemetry (~/.cache/herdr-shells/<PID>.json).
+# Guarded by last-known directory so prompt renders do zero disk I/O unless $PWD changed.
+zmodload zsh/datetime 2>/dev/null || true
+_herdr_shell_cache_directory="${HOME}/.cache/herdr-shells"
+_herdr_shell_telemetry_file_path="${_herdr_shell_cache_directory}/$$.json"
+_herdr_last_tracked_working_directory=""
+
+_herdr_publish_shell_telemetry() {
+  [[ -n "${PWD:-}" && "$PWD" != "$_herdr_last_tracked_working_directory" ]] || return 0
+  _herdr_last_tracked_working_directory="$PWD"
+  [[ -d "$_herdr_shell_cache_directory" ]] || command mkdir -p "$_herdr_shell_cache_directory" 2>/dev/null || return 0
+
+  local herdr_pane_id="${HERDR_PANE_ID:-${HERDR_PANE:-}}"
+  local herdr_workspace_id="${HERDR_WORKSPACE_ID:-${HERDR_WORKSPACE:-}}"
+  local escaped_pane_id="${herdr_pane_id//\\/\\\\}"
+  escaped_pane_id="${escaped_pane_id//\"/\\\"}"
+  local escaped_workspace_id="${herdr_workspace_id//\\/\\\\}"
+  escaped_workspace_id="${escaped_workspace_id//\"/\\\"}"
+  local escaped_directory="${PWD//\\/\\\\}"
+  escaped_directory="${escaped_directory//\"/\\\"}"
+
+  local updated_unix_ms
+  if [[ -n "${EPOCHREALTIME:-}" ]]; then
+    local epoch_seconds="${EPOCHREALTIME%.*}"
+    local epoch_fraction="${EPOCHREALTIME#*.}000"
+    updated_unix_ms="${epoch_seconds}${epoch_fraction[1,3]}"
+  elif [[ -n "${EPOCHSECONDS:-}" ]]; then
+    updated_unix_ms="${EPOCHSECONDS}000"
+  else
+    updated_unix_ms="$(command date +%s 2>/dev/null || printf '0')000"
+  fi
+
+  printf '{"pid":%d,"pane_id":"%s","workspace_id":"%s","cwd":"%s","updated_unix_ms":%s}\n' \
+    "$$" "$escaped_pane_id" "$escaped_workspace_id" "$escaped_directory" "$updated_unix_ms" \
+    >| "$_herdr_shell_telemetry_file_path" 2>/dev/null || true
+}
+
+_herdr_cleanup_shell_telemetry() {
+  [[ -n "${_herdr_shell_telemetry_file_path:-}" ]] && command rm -f "$_herdr_shell_telemetry_file_path" 2>/dev/null || true
+}
+
+if autoload -Uz add-zsh-hook 2>/dev/null; then
+  add-zsh-hook precmd _herdr_publish_shell_telemetry 2>/dev/null || true
+  add-zsh-hook zshexit _herdr_cleanup_shell_telemetry 2>/dev/null || true
+fi
+_herdr_publish_shell_telemetry 2>/dev/null || true
+
 # Per-machine overrides (gitignored). Put machine-specific PATHs here,
 # e.g. flutter, Antigravity CLI, etc.
 if [[ -f "$HOME/.zshrc.local" ]]; then

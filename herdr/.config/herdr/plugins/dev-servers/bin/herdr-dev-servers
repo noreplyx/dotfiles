@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Entrypoint wrapper for the dotfiles.dev-servers Herdr plugin.
+set -euo pipefail
+
+script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+plugin_root_directory="$(cd "${script_directory}/.." && pwd)"
+target_script="${plugin_root_directory}/scripts/dev-servers.sh"
+
+subcommand="${1:-open}"
+shift || true
+
+case "$subcommand" in
+  daemon|--daemon)
+    exec "$target_script" --daemon "$@"
+    ;;
+  open|--open)
+    exec "$target_script" --open "$@"
+    ;;
+  stop|--stop)
+    exec "$target_script" --stop "$@"
+    ;;
+  pane|--pane)
+    exec "$target_script" --pane "$@"
+    ;;
+  scan|--scan)
+    exec "$target_script" --scan "$@"
+    ;;
+  badge|--badge)
+    exec "$target_script" --badge "$@"
+    ;;
+  help|-h|--help)
+    exec "$target_script" --help "$@"
+    ;;
+  *)
+    printf 'herdr-dev-servers: unknown subcommand: %s\n' "$subcommand" >&2
+    printf 'usage: herdr-dev-servers [daemon|open|stop|pane|scan|badge|--help]\n' >&2
+    exit 1
+    ;;
+esac

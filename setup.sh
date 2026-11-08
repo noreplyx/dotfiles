@@ -407,12 +407,36 @@ install_lazysql() {
 }
 
 install_herdr() {
-  chmod +x "$DOTFILES_DIR/herdr/.config/herdr/scripts/keep-awake.sh" 2>/dev/null || true
-  if [[ "${1:-}" == "windows" && -n "${APPDATA:-}" ]]; then
-    local appdata_dir="$APPDATA"
-    command_exists cygpath && appdata_dir="$(cygpath -u "$APPDATA")"
-    mkdir -p "$appdata_dir/herdr" 2>/dev/null || true
-    ln -sf "$DOTFILES_DIR/herdr/.config/herdr/config.toml" "$appdata_dir/herdr/config.toml" 2>/dev/null || cp -f "$DOTFILES_DIR/herdr/.config/herdr/config.toml" "$appdata_dir/herdr/config.toml" 2>/dev/null || true
+  chmod +x "$DOTFILES_DIR/herdr/.config/herdr/scripts/keep-awake.sh" \
+    "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers/bin/herdr-dev-servers" \
+    "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers/scripts/dev-servers.sh" \
+    "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers/scripts/dev-servers-tui.sh" 2>/dev/null || true
+  if [[ "${1:-}" == "windows" ]]; then
+    if [[ -n "${APPDATA:-}" ]]; then
+      local appdata_dir="$APPDATA"
+      command_exists cygpath && appdata_dir="$(cygpath -u "$APPDATA")"
+      mkdir -p "$appdata_dir/herdr" 2>/dev/null || true
+      ln -sf "$DOTFILES_DIR/herdr/.config/herdr/config.toml" "$appdata_dir/herdr/config.toml" 2>/dev/null || cp -f "$DOTFILES_DIR/herdr/.config/herdr/config.toml" "$appdata_dir/herdr/config.toml" 2>/dev/null || true
+    fi
+    local user_herdr_config_dir="$HOME/.config/herdr"
+    mkdir -p "$user_herdr_config_dir/plugins" 2>/dev/null || true
+    ln -sf "$DOTFILES_DIR/herdr/.config/herdr/config.toml" "$user_herdr_config_dir/config.toml" 2>/dev/null || cp -f "$DOTFILES_DIR/herdr/.config/herdr/config.toml" "$user_herdr_config_dir/config.toml" 2>/dev/null || true
+    if [[ ! -e "$user_herdr_config_dir/scripts" ]]; then
+      ln -s "$DOTFILES_DIR/herdr/.config/herdr/scripts" "$user_herdr_config_dir/scripts" 2>/dev/null \
+        || { mkdir -p "$user_herdr_config_dir/scripts" && cp -rf "$DOTFILES_DIR/herdr/.config/herdr/scripts/." "$user_herdr_config_dir/scripts/"; } 2>/dev/null || true
+    elif [[ ! -L "$user_herdr_config_dir/scripts" ]]; then
+      cp -rf "$DOTFILES_DIR/herdr/.config/herdr/scripts/." "$user_herdr_config_dir/scripts/" 2>/dev/null || true
+    fi
+    if [[ ! -e "$user_herdr_config_dir/plugins/dev-servers" ]]; then
+      ln -s "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers" "$user_herdr_config_dir/plugins/dev-servers" 2>/dev/null \
+        || { mkdir -p "$user_herdr_config_dir/plugins/dev-servers" && cp -rf "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers/." "$user_herdr_config_dir/plugins/dev-servers/"; } 2>/dev/null || true
+    elif [[ ! -L "$user_herdr_config_dir/plugins/dev-servers" ]]; then
+      cp -rf "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers/." "$user_herdr_config_dir/plugins/dev-servers/" 2>/dev/null || true
+    fi
+    chmod +x "$user_herdr_config_dir/scripts/keep-awake.sh" \
+      "$user_herdr_config_dir/plugins/dev-servers/bin/herdr-dev-servers" \
+      "$user_herdr_config_dir/plugins/dev-servers/scripts/dev-servers.sh" \
+      "$user_herdr_config_dir/plugins/dev-servers/scripts/dev-servers-tui.sh" 2>/dev/null || true
   fi
   if command_exists herdr; then
     skip "herdr already installed"
@@ -494,6 +518,22 @@ install_herdr_terminal_browser() {
   info "Installing herdr terminal-browser plugin (${HERDR_TERMINAL_BROWSER_REF})"
   herdr plugin install "zenbu-labs/terminal-browser/herdr-plugin" --ref "$HERDR_TERMINAL_BROWSER_REF" -y \
     || warn "herdr terminal-browser install failed (non-fatal); install manually: herdr plugin install zenbu-labs/terminal-browser/herdr-plugin"
+}
+
+install_herdr_dev_servers() {
+  local plugin_dir="$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers"
+  if ! command_exists herdr; then
+    warn "herdr not found; run 'herdr plugin link $plugin_dir' after installing it"
+    return
+  fi
+  if herdr plugin list 2>/dev/null | grep -q "dotfiles.dev-servers"; then
+    skip "herdr dev-servers plugin already installed"
+    return
+  fi
+  info "Installing herdr dev-servers plugin (dotfiles.dev-servers)"
+  herdr plugin link "$plugin_dir" 2>/dev/null \
+    || herdr plugin install "$plugin_dir" -y 2>/dev/null \
+    || warn "herdr dev-servers install failed (non-fatal); install manually: herdr plugin link $plugin_dir"
 }
 
 install_wezterm() {
@@ -729,6 +769,7 @@ main() {
   install_herdr_birdseye
   install_herdr_automations
   install_herdr_terminal_browser
+  install_herdr_dev_servers
   install_wezterm "$os"
   pin_tabline_wez
   install_kb_layout_watcher "$os"
