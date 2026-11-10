@@ -29,21 +29,14 @@ description = "open terminal-browser (right split)"
 [[keys.command]]
 key = "prefix+shift+a"
 type = "shell"
-command = "powershell -NoLogo -WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& \\\"$HOME/.config/herdr/scripts/keep-awake.ps1\\\" --toggle\" || ~/.config/herdr/scripts/keep-awake.sh --toggle"
+command = "powershell -NoLogo -WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%USERPROFILE%/.config/herdr/scripts/keep-awake.ps1\" --toggle || ~/.config/herdr/scripts/keep-awake.sh --toggle"
 description = "toggle screen keep-awake"
-
-[[keys.command]]
-key = "prefix+d"
-type = "shell"
-command = "herdr plugin pane open --plugin dotfiles.dev-servers --entrypoint board --placement overlay"
-description = "show dev servers"
 
 [terminal]
 kitty_graphics = true
 
 [ui]
 tab_bar_right = [
-  { type = "command", command = "powershell -WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& \\\"$HOME/.config/herdr/plugins/dev-servers/scripts/dev-servers.ps1\\\" --badge\" || ~/.config/herdr/plugins/dev-servers/scripts/dev-servers.sh --badge", interval_seconds = 2, timeout_seconds = 5 },
-  { type = "command", command = "powershell -NoLogo -WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& \\\"$HOME/.config/herdr/scripts/keep-awake.ps1\\\" --badge\" || ~/.config/herdr/scripts/keep-awake.sh --badge", interval_seconds = 2, timeout_seconds = 5 },
+  { type = "command", command = "cmd.exe /d /c \"type \\\"%USERPROFILE%\\.cache\\herdr-keep-awake.badge\\\" 2>nul\" || cat \"$HOME/.cache/herdr-keep-awake.badge\" 2>/dev/null || echo AWAKE: OFF", interval_seconds = 5, timeout_seconds = 5 },
   { type = "zoom" },
 ]

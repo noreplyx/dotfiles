@@ -144,53 +144,6 @@ if ($zoxideInitPath) { . $zoxideInitPath }
 $fnmInitPath = Resolve-CachedInitScript -Name 'fnm' -Generator { & fnm env --use-on-cd --shell powershell }
 if ($fnmInitPath) { . $fnmInitPath }
 
-$userHomeDirectory = if ($env:USERPROFILE) { $env:USERPROFILE } else { $HOME }
-$script:HerdrShellCacheDirectory = Join-Path $userHomeDirectory '.cache\herdr-shells'
-$script:HerdrShellTelemetryFilePath = Join-Path $script:HerdrShellCacheDirectory "$PID.json"
-$global:LastTrackedHerdrWorkingDirectory = ''
-
-function Publish-HerdrShellTelemetry {
-    param(
-        [Parameter(Mandatory = $true)][string]$CurrentDirectoryPath
-    )
-    if ($CurrentDirectoryPath -eq $global:LastTrackedHerdrWorkingDirectory) {
-        return
-    }
-    $global:LastTrackedHerdrWorkingDirectory = $CurrentDirectoryPath
-    try {
-        if (-not [System.IO.Directory]::Exists($script:HerdrShellCacheDirectory)) {
-            [void][System.IO.Directory]::CreateDirectory($script:HerdrShellCacheDirectory)
-        }
-        $paneId = if ($env:HERDR_PANE_ID) { $env:HERDR_PANE_ID } elseif ($env:HERDR_PANE) { $env:HERDR_PANE } else { '' }
-        $workspaceId = if ($env:HERDR_WORKSPACE_ID) { $env:HERDR_WORKSPACE_ID } elseif ($env:HERDR_WORKSPACE) { $env:HERDR_WORKSPACE } else { '' }
-        $escapedPaneId = $paneId.Replace('\', '\\').Replace('"', '\"')
-        $escapedWorkspaceId = $workspaceId.Replace('\', '\\').Replace('"', '\"')
-        $escapedDirectoryPath = $CurrentDirectoryPath.Replace('\', '\\').Replace('"', '\"')
-        $updatedUnixMilliseconds = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-        $telemetryPayload = "{`"pid`":$PID,`"pane_id`":`"$escapedPaneId`",`"workspace_id`":`"$escapedWorkspaceId`",`"cwd`":`"$escapedDirectoryPath`",`"updated_unix_ms`":$updatedUnixMilliseconds}"
-        $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
-        [System.IO.File]::WriteAllText($script:HerdrShellTelemetryFilePath, $telemetryPayload, $utf8NoBom)
-    } catch {
-        Write-Verbose "Failed to publish Herdr shell telemetry for PID ${PID}: $($_.Exception.Message)"
-    }
-}
-
-$null = Register-EngineEvent -SourceIdentifier PowerShell.Exiting -SupportEvent -Action {
-    try {
-        $userHomeDirectory = if ($env:USERPROFILE) { $env:USERPROFILE } else { $HOME }
-        $telemetryFilePath = Join-Path $userHomeDirectory ".cache\herdr-shells\$PID.json"
-        if ([System.IO.File]::Exists($telemetryFilePath)) {
-            [System.IO.File]::Delete($telemetryFilePath)
-        }
-    } catch {
-        Write-Verbose "Failed to remove Herdr shell telemetry on exit for PID ${PID}: $($_.Exception.Message)"
-    }
-}
-
-if ($PWD -and $PWD.Provider.Name -eq 'FileSystem') {
-    Publish-HerdrShellTelemetry -CurrentDirectoryPath $PWD.ProviderPath
-}
-
 if (Test-Path Function:\prompt) {
     $script:InnerPromptFunction = $function:prompt
     $script:LastEmittedKeyboardLayout = ''
@@ -203,11 +156,7 @@ if (Test-Path Function:\prompt) {
 
         $currentLocation = $executionContext.SessionState.Path.CurrentLocation
         if ($currentLocation.Provider.Name -eq 'FileSystem') {
-            $currentDirectoryPath = $currentLocation.ProviderPath
-            if ($currentDirectoryPath -ne $global:LastTrackedHerdrWorkingDirectory) {
-                Publish-HerdrShellTelemetry -CurrentDirectoryPath $currentDirectoryPath
-            }
-            $normalizedProviderPath = $currentDirectoryPath.Replace('\', '/').TrimStart('/')
+            $normalizedProviderPath = $currentLocation.ProviderPath.Replace('\', '/').TrimStart('/')
             $hostName = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { 'localhost' }
             $prefixSequences += "${ansiEscape}]7;file://${hostName}/${normalizedProviderPath}${ansiBell}"
         }

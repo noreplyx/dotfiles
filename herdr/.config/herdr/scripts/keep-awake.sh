@@ -40,6 +40,37 @@ resolve_powershell() {
   return 1
 }
 
+read_first_line_trimmed() {
+  local file_path="$1" line=""
+  [[ -f "$file_path" ]] || return 0
+  IFS=$' \t\r\n' read -r line < "$file_path" 2>/dev/null || true
+  printf '%s' "$line"
+}
+
+render_badge_from_files() {
+  local badge_file_path="$1"
+  local state_file_path="$2"
+  local cached_badge=""
+  if [[ -f "$badge_file_path" ]]; then
+    cached_badge="$(read_first_line_trimmed "$badge_file_path")"
+    if [[ -n "$cached_badge" ]]; then
+      printf '%s\n' "$cached_badge"
+      return 0
+    fi
+  fi
+
+  local cached_state=""
+  if [[ -f "$state_file_path" ]]; then
+    cached_state="$(read_first_line_trimmed "$state_file_path")"
+  fi
+  if [[ "$cached_state" == [Oo][Nn] ]]; then
+    printf 'AWAKE: ON\n'
+    return 0
+  fi
+
+  printf 'AWAKE: OFF\n'
+}
+
 PLATFORM="$(detect_platform)"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -53,12 +84,25 @@ fi
 powershell_binary="$(resolve_powershell || true)"
 
 if [[ "$PLATFORM" == "windows" ]]; then
+  if [[ "${1:-}" == "--badge" || "${1:-}" == "badge" ]]; then
+    target_badge="${HOME:-}/.cache/herdr-keep-awake.badge"
+    if [[ ! -f "$target_badge" && -n "${USERPROFILE:-}" ]]; then
+      target_badge="${USERPROFILE}/.cache/herdr-keep-awake.badge"
+    fi
+    target_state="${HOME:-}/.cache/herdr-keep-awake"
+    if [[ ! -f "$target_state" && -n "${USERPROFILE:-}" ]]; then
+      target_state="${USERPROFILE}/.cache/herdr-keep-awake"
+    fi
+    render_badge_from_files "$target_badge" "$target_state"
+    exit 0
+  fi
+
   if [[ -z "$powershell_binary" ]]; then
     printf 'keep-awake: powershell not found for platform %s\n' "$PLATFORM" >&2
     printf 'OFF\n'
     exit 1
   fi
-  exec "$powershell_binary" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$windows_powershell_script_path" "${1:---toggle}"
+  exec "$powershell_binary" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$windows_powershell_script_path" "${1:---toggle}"
 fi
 
 RUNTIME_STATE_DIR="${HOME:-/tmp}/.cache"
@@ -68,16 +112,10 @@ command mkdir -p "$RUNTIME_STATE_DIR" 2>/dev/null || {
 }
 
 STATE_FILE="${RUNTIME_STATE_DIR}/herdr-keep-awake"
+BADGE_FILE="${RUNTIME_STATE_DIR}/herdr-keep-awake.badge"
 WATCHDOG_PID_FILE="${RUNTIME_STATE_DIR}/herdr-keep-awake.pid"
 INHIBITOR_PID_FILE="${RUNTIME_STATE_DIR}/herdr-keep-awake.child.pid"
 LOG_FILE="${RUNTIME_STATE_DIR}/herdr-keep-awake.log"
-
-read_first_line_trimmed() {
-  local file_path="$1" line=""
-  [[ -f "$file_path" ]] || return 0
-  IFS=$' \t\r\n' read -r line < "$file_path" 2>/dev/null || true
-  printf '%s' "$line"
-}
 
 write_atomic_file() {
   local target_path="$1"
@@ -116,15 +154,29 @@ log_keep_awake_event() {
 }
 
 write_state() {
-  local state="$1" mirror_destination_path
-  write_atomic_file "$STATE_FILE" "$state"
+  local state="$1" mirror_destination_path badge_text
+  local normalized_state="OFF"
+  if [[ "$state" == [Oo][Nn] ]]; then
+    normalized_state="ON"
+  fi
+  badge_text="AWAKE: ${normalized_state}"
+
+  write_atomic_file "$STATE_FILE" "$normalized_state"
+  write_atomic_file "$BADGE_FILE" "$badge_text"
+
   local mirror_targets=("${HOME:-/tmp}/.cache/herdr-keep-awake" "/tmp/herdr-keep-awake")
+  local mirror_badge_targets=("${HOME:-/tmp}/.cache/herdr-keep-awake.badge" "/tmp/herdr-keep-awake.badge")
   if [[ -n "${XDG_RUNTIME_DIR:-}" && -d "${XDG_RUNTIME_DIR}" ]]; then
     mirror_targets+=("${XDG_RUNTIME_DIR}/herdr-keep-awake")
+    mirror_badge_targets+=("${XDG_RUNTIME_DIR}/herdr-keep-awake.badge")
   fi
   for mirror_destination_path in "${mirror_targets[@]}"; do
     [[ "$mirror_destination_path" == "$STATE_FILE" ]] && continue
-    write_atomic_file "$mirror_destination_path" "$state"
+    write_atomic_file "$mirror_destination_path" "$normalized_state"
+  done
+  for mirror_destination_path in "${mirror_badge_targets[@]}"; do
+    [[ "$mirror_destination_path" == "$BADGE_FILE" ]] && continue
+    write_atomic_file "$mirror_destination_path" "$badge_text"
   done
 }
 
@@ -467,36 +519,9 @@ print_keep_awake_status() {
   fi
 }
 
+# Liveness reconciliation is deferred to --status/--toggle so --badge remains a pure lock-free cache reader.
 print_keep_awake_badge() {
-  local cached_state=""
-  if [[ -f "$STATE_FILE" ]]; then
-    cached_state="$(read_first_line_trimmed "$STATE_FILE")"
-  fi
-  if [[ "$cached_state" == [Oo][Nn] ]]; then
-    if is_active; then
-      printf 'AWAKE: ON\n'
-      return 0
-    fi
-    local herdr_pid=""
-    herdr_pid="$(get_posix_herdr_pid || true)"
-    if [[ -n "$herdr_pid" ]] && has_inhibitor_backend; then
-      log_keep_awake_event "INFO" "badge_self_heal" "restarting dead watchdog for herdrPid=${herdr_pid}"
-      start_background_watchdog 1 "$herdr_pid"
-      printf 'AWAKE: ON\n'
-      return 0
-    fi
-    rm -f "$WATCHDOG_PID_FILE" "$INHIBITOR_PID_FILE" 2>/dev/null || true
-    write_state "OFF"
-    printf 'AWAKE: OFF\n'
-    return 0
-  fi
-  if [[ -z "$cached_state" ]] && is_active; then
-    write_state "ON"
-    printf 'AWAKE: ON\n'
-  else
-    clear_stale_state
-    printf 'AWAKE: OFF\n'
-  fi
+  render_badge_from_files "$BADGE_FILE" "$STATE_FILE"
 }
 
 action="${1:---toggle}"

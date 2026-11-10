@@ -406,6 +406,22 @@ install_lazysql() {
   esac
 }
 
+preseed_herdr_cache_badges() {
+  local cache_dirs=("${HOME}/.cache")
+  if [[ -n "${USERPROFILE:-}" ]] && { command_exists cygpath || [[ "${OSTYPE:-}" == "msys" || "${OSTYPE:-}" == "cygwin" ]]; }; then
+    local windows_cache_dir="$USERPROFILE/.cache"
+    command_exists cygpath && windows_cache_dir="$(cygpath -u "$USERPROFILE")/.cache"
+    cache_dirs+=("$windows_cache_dir")
+  fi
+  local cache_dir
+  for cache_dir in "${cache_dirs[@]}"; do
+    mkdir -p "$cache_dir" 2>/dev/null || true
+    if [[ ! -f "$cache_dir/herdr-keep-awake.badge" ]]; then
+      printf 'AWAKE: OFF\n' > "$cache_dir/herdr-keep-awake.badge" 2>/dev/null || true
+    fi
+  done
+}
+
 sync_herdr_target_dir() {
   local target_dir="$1"
   mkdir -p "$target_dir" 2>/dev/null || true
@@ -418,32 +434,17 @@ sync_herdr_target_dir() {
     cp -rf "$DOTFILES_DIR/herdr/.config/herdr/scripts/." "$target_dir/scripts/" 2>/dev/null || true
   fi
   chmod +x "$target_dir/scripts/keep-awake.sh" 2>/dev/null || true
+  preseed_herdr_cache_badges
 }
 
 install_herdr() {
-  chmod +x "$DOTFILES_DIR/herdr/.config/herdr/scripts/keep-awake.sh" \
-    "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers/bin/herdr-dev-servers" \
-    "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers/scripts/dev-servers.sh" \
-    "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers/scripts/dev-servers-tui.sh" 2>/dev/null || true
-  if [[ "${1:-}" == "windows" ]]; then
-    if [[ -n "${APPDATA:-}" ]]; then
-      local appdata_dir="$APPDATA"
-      command_exists cygpath && appdata_dir="$(cygpath -u "$APPDATA")"
-      sync_herdr_target_dir "$appdata_dir/herdr"
-    fi
-    local user_herdr_config_dir="$HOME/.config/herdr"
-    mkdir -p "$user_herdr_config_dir/plugins" 2>/dev/null || true
-    sync_herdr_target_dir "$user_herdr_config_dir"
-    if [[ ! -e "$user_herdr_config_dir/plugins/dev-servers" ]]; then
-      ln -s "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers" "$user_herdr_config_dir/plugins/dev-servers" 2>/dev/null \
-        || { mkdir -p "$user_herdr_config_dir/plugins/dev-servers" && cp -rf "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers/." "$user_herdr_config_dir/plugins/dev-servers/"; } 2>/dev/null || true
-    elif [[ ! -L "$user_herdr_config_dir/plugins/dev-servers" ]]; then
-      cp -rf "$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers/." "$user_herdr_config_dir/plugins/dev-servers/" 2>/dev/null || true
-    fi
-    chmod +x "$user_herdr_config_dir/plugins/dev-servers/bin/herdr-dev-servers" \
-      "$user_herdr_config_dir/plugins/dev-servers/scripts/dev-servers.sh" \
-      "$user_herdr_config_dir/plugins/dev-servers/scripts/dev-servers-tui.sh" 2>/dev/null || true
+  chmod +x "$DOTFILES_DIR/herdr/.config/herdr/scripts/keep-awake.sh" 2>/dev/null || true
+  if [[ "${1:-}" == "windows" && -n "${APPDATA:-}" ]]; then
+    local appdata_dir="$APPDATA"
+    command_exists cygpath && appdata_dir="$(cygpath -u "$APPDATA")"
+    sync_herdr_target_dir "$appdata_dir/herdr"
   fi
+  sync_herdr_target_dir "$HOME/.config/herdr"
   if command_exists herdr; then
     skip "herdr already installed"
     return
@@ -524,22 +525,6 @@ install_herdr_terminal_browser() {
   info "Installing herdr terminal-browser plugin (${HERDR_TERMINAL_BROWSER_REF})"
   herdr plugin install "zenbu-labs/terminal-browser/herdr-plugin" --ref "$HERDR_TERMINAL_BROWSER_REF" -y \
     || warn "herdr terminal-browser install failed (non-fatal); install manually: herdr plugin install zenbu-labs/terminal-browser/herdr-plugin"
-}
-
-install_herdr_dev_servers() {
-  local plugin_dir="$DOTFILES_DIR/herdr/.config/herdr/plugins/dev-servers"
-  if ! command_exists herdr; then
-    warn "herdr not found; run 'herdr plugin link $plugin_dir' after installing it"
-    return
-  fi
-  if herdr plugin list 2>/dev/null | grep -q "dotfiles.dev-servers"; then
-    skip "herdr dev-servers plugin already installed"
-    return
-  fi
-  info "Installing herdr dev-servers plugin (dotfiles.dev-servers)"
-  herdr plugin link "$plugin_dir" 2>/dev/null \
-    || herdr plugin install "$plugin_dir" -y 2>/dev/null \
-    || warn "herdr dev-servers install failed (non-fatal); install manually: herdr plugin link $plugin_dir"
 }
 
 install_wezterm() {
@@ -631,23 +616,23 @@ install_kb_layout_watcher() {
       skip "input switcher already installed"
     fi
     if [[ "$os" == "macos" ]]; then
-      _kb_dir="${XDG_RUNTIME_DIR:-/tmp}"
-      if [[ -z "${XDG_RUNTIME_DIR:-}" && -d "$HOME/.cache" ]]; then _kb_dir="$HOME/.cache"; fi
-      mkdir -p "$_kb_dir" 2>/dev/null || true
+      _keyboard_cache_dir="${XDG_RUNTIME_DIR:-/tmp}"
+      if [[ -z "${XDG_RUNTIME_DIR:-}" && -d "$HOME/.cache" ]]; then _keyboard_cache_dir="$HOME/.cache"; fi
+      mkdir -p "$_keyboard_cache_dir" 2>/dev/null || true
       if command -v macism >/dev/null 2>&1; then
-        printf '%s' "macism" > "$_kb_dir/wezterm-kb-selector" 2>/dev/null || true
+        printf '%s' "macism" > "$_keyboard_cache_dir/wezterm-kb-selector" 2>/dev/null || true
       elif command -v im-select >/dev/null 2>&1; then
-        printf '%s' "im-select" > "$_kb_dir/wezterm-kb-selector" 2>/dev/null || true
+        printf '%s' "im-select" > "$_keyboard_cache_dir/wezterm-kb-selector" 2>/dev/null || true
       fi
-      _plist_src="$DOTFILES_DIR/wezterm/.config/wezterm/scripts/com.wezterm.kb-layout-watch.plist"
-      _plist_dest="$HOME/Library/LaunchAgents/com.wezterm.kb-layout-watch.plist"
-      if [[ -f "$_plist_src" ]]; then
+      _launch_agent_plist_source="$DOTFILES_DIR/wezterm/.config/wezterm/scripts/com.wezterm.kb-layout-watch.plist"
+      _launch_agent_plist_dest="$HOME/Library/LaunchAgents/com.wezterm.kb-layout-watch.plist"
+      if [[ -f "$_launch_agent_plist_source" ]]; then
         mkdir -p "$HOME/Library/LaunchAgents" 2>/dev/null || true
-        ln -sf "$_plist_src" "$_plist_dest" 2>/dev/null || true
+        ln -sf "$_launch_agent_plist_source" "$_launch_agent_plist_dest" 2>/dev/null || true
         if command_exists launchctl; then
-          launchctl bootout "gui/$(id -u)" "$_plist_dest" >/dev/null 2>&1 || true
-          launchctl bootstrap "gui/$(id -u)" "$_plist_dest" >/dev/null 2>&1 || \
-            launchctl load -w "$_plist_dest" >/dev/null 2>&1 || \
+          launchctl bootout "gui/$(id -u)" "$_launch_agent_plist_dest" >/dev/null 2>&1 || true
+          launchctl bootstrap "gui/$(id -u)" "$_launch_agent_plist_dest" >/dev/null 2>&1 || \
+            launchctl load -w "$_launch_agent_plist_dest" >/dev/null 2>&1 || \
             warn "could not load kb-layout-watch LaunchAgent (non-fatal; wezterm gui-startup fallback still works)"
         fi
       fi
@@ -775,7 +760,6 @@ main() {
   install_herdr_birdseye
   install_herdr_automations
   install_herdr_terminal_browser
-  install_herdr_dev_servers
   install_wezterm "$os"
   pin_tabline_wez
   install_kb_layout_watcher "$os"
