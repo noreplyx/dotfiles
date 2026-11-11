@@ -10,7 +10,9 @@ return {
       lua = "rainbow-delimiters",
       python = "rainbow-delimiters",
       html = "rainbow-delimiters",
-      c_sharp = "rainbow-delimiters",
+    },
+    blacklist = {
+      "c_sharp",
     },
     highlight = {
       "RainbowDelimiterRed",

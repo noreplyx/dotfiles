@@ -1,6 +1,7 @@
 return {
   {
     "sphamba/smear-cursor.nvim",
+    enabled = vim.fn.has("win32") == 0,
     event = "VeryLazy",
     opts = {
       legacy_computing_symbols_support = false,
