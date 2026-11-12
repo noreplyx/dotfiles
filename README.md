@@ -18,7 +18,7 @@ target that prints `winget` install guidance instead of invoking `dnf`/`brew`.
 ## How to use this project
 
 This repository uses [GNU Stow](https://www.gnu.org/software/stow/) to manage
-dotfiles as symlinks. Each directory (`zsh/`, `powershell/`,
+dotfiles as symlinks. Each directory (`zsh/`,
 `herdr/`, `lazygit/`, `lazysql/`)
 mirrors the target home directory structure. Running `stow` creates symlinks
 from your home directory back into this repo, so changes are tracked in one
@@ -52,7 +52,7 @@ require interaction (changing your shell, authenticating GitHub CLI) are left ma
 This means the repo can live anywhere, not just `~/Codes/dotfiles`.
 
 The projects directory defaults to `~/Codes` (used by the `c` shortcut in
-both shells). To change it, set `CODES_DIR` before running
+Zsh). To change it, set `CODES_DIR` before running
 `setup.sh` or `make install`:
 
 ```bash
@@ -62,7 +62,7 @@ make install CODES_DIR=~/Projects
 ```
 
 Per-machine settings (e.g. Flutter, Antigravity CLI paths) go in
-`~/.zshrc.local` (Zsh) or `~/.profile.local.ps1` (PowerShell), which are
+`~/.zshrc.local`, which is
 sourced automatically and not tracked by git.
 
 ### Updating
@@ -100,7 +100,6 @@ stow -t ~ example
 ## Included
 
 - **Zsh** — Zinit plugin manager with autosuggestions, completions, fzf-tab, syntax highlighting
-- **PowerShell 7 (`pwsh`)** — XDG profile with binary-mtime-invalidated init caching (`zoxide`, `fnm`), `PSReadLine` predictive IntelliSense (`HistoryAndPlugin` + Tokyo Night palette), zero-startup-cost native `fzf` keybindings (`Ctrl+r`, `Ctrl+t`, `Alt+c`), CLI argument completers (`winget`, `gh`, `carapace`), `eza`/`bat` wrappers, and OSC 7 directory reporting
 - **LazyGit** — TUI git client with Tokyo Night theme
 - **GitHub CLI** — `gh`, installed by `setup.sh` (dnf/brew). Authenticate once with `gh auth login`; tokens live in `~/.config/gh/hosts.yml` (never committed)
 - **LazySQL** — TUI database client (MySQL, PostgreSQL, SQLite, MSSQL, MongoDB) with configurable connections
@@ -205,13 +204,6 @@ dotfiles/
 ├── setup.sh
 ├── zsh/
 │   └── .zshrc
-├── powershell/
-│   ├── .config/
-│   │   └── powershell/
-│   │       └── Microsoft.PowerShell_profile.ps1
-│   └── Documents/
-│       └── PowerShell/
-│           └── Microsoft.PowerShell_profile.ps1
 ├── lazygit/
 │   └── .config/
 │       └── lazygit/
@@ -232,51 +224,6 @@ dotfiles/
                 ├── keep-awake.ps1
                 └── keep-awake.sh
 ```
-
----
-
-## PowerShell
-
-Cross-platform PowerShell 7 (`pwsh`) profile in `powershell/.config/powershell/Microsoft.PowerShell_profile.ps1`
-(on Windows, `setup.sh` also deploys a thin bootstrap loader to `$PROFILE.CurrentUserCurrentHost`, including OneDrive-redirected `Documents` folders).
-
-### Keybindings (`PSReadLine` + `fzf`)
-
-| Key | Action |
-| --- | ------ |
-| `Tab` / `Shift+Tab` | Interactive menu completion (`MenuComplete` / `TabCompletePrevious`) |
-| `RightArrow` / `Ctrl+f` | Accept full inline ghost suggestion at end of line |
-| `Alt+RightArrow` / `Alt+f` | Accept next word of inline suggestion (`AcceptNextSuggestionWord`) |
-| `F2` | Toggle prediction view between `InlineView` and dropdown `ListView` |
-| `UpArrow` / `Ctrl+p` | Prefix-filtered backward history search (`HistorySearchBackward`) |
-| `DownArrow` / `Ctrl+n` | Prefix-filtered forward history search (`HistorySearchForward`) |
-| `Ctrl+r` | Fuzzy command history search via `fzf` |
-| `Ctrl+t` | Fuzzy file finder (`fd` + `fzf -m`) inserted at cursor |
-| `Alt+c` | Fuzzy directory jump (`fd` + `fzf` + `Set-Location`) |
-| `Alt+.` | Insert last argument from previous command (`YankLastArg`) |
-| `Ctrl+d` | Delete character under cursor or exit empty shell (`DeleteCharOrExit`) |
-
-### Wrappers & Shortcuts
-
-- `ls`, `ll`, `la`, `lt` — `eza` wrappers with icons and Git status (when `eza` is installed)
-- `catp` — `bat --paging=never` wrapper (keeps PowerShell's built-in `cat` alias intact for scripts)
-- `lg`, `c`, `..`, `...` — quick shortcuts for `lazygit`, `$CODES_DIR` (`~/Codes`), and parent directories
-- `which`, `touch`, `mkcd` — cross-platform shell utilities
-
-### Startup Cache & Profiling
-
-External CLI init scripts (`zoxide`, `fnm`, `gh`, `carapace`) are cached in
-`~/.cache/powershell/<tool>-init.ps1` and automatically regenerated only when the binary's
-`LastWriteTimeUtc` is newer than the cache file.
-
-To inspect per-section startup timing:
-
-```powershell
-$env:PWSH_PROFILE_TIMING = 1
-pwsh -NoLogo -Command "exit"
-```
-
-Per-machine overrides go in `~/.profile.local.ps1` (untracked by git).
 
 ---
 
@@ -317,7 +264,6 @@ previously installed. If you want to clean a machine, do it manually:
 
 ```bash
 # caches (safe to delete, regenerated on demand)
-rm -rf ~/.cache/powershell/*-init.ps1
 rm -rf ~/.cache/zsh
 ```
 

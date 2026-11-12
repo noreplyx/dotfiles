@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PACKAGES="zsh powershell lazygit lazysql herdr"
+PACKAGES="zsh lazygit lazysql herdr"
 
 # Supply-chain pins (best-effort: upstream publishes no checksums/hashes).
 # Transport is hardened to HTTPS-only (--proto '=https' --tlsv1.2) everywhere.
@@ -416,55 +416,6 @@ stow_packages() {
   stow -t "$HOME" $PACKAGES
 }
 
-link_powershell_profile() {
-  local os="${1:-$(detect_os)}"
-  local xdg_profile_src="$DOTFILES_DIR/powershell/.config/powershell/Microsoft.PowerShell_profile.ps1"
-  local xdg_profile_dest="$HOME/.config/powershell/Microsoft.PowerShell_profile.ps1"
-
-  if [[ -f "$xdg_profile_src" && ! -L "$xdg_profile_dest" ]]; then
-    mkdir -p "$HOME/.config/powershell"
-    ln -sf "$xdg_profile_src" "$xdg_profile_dest" 2>/dev/null || cp -f "$xdg_profile_src" "$xdg_profile_dest"
-  fi
-
-  if [[ "$os" != "windows" ]]; then
-    return 0
-  fi
-
-  info "Configuring PowerShell 7 profile and execution policy for Windows"
-  if ! command_exists pwsh; then
-    warn "pwsh not found; skipping Windows PowerShell 7 profile bootstrap"
-    return 0
-  fi
-
-  local raw_profile_path unix_profile_path profile_dir
-  local bootstrap_profile_src="$DOTFILES_DIR/powershell/Documents/PowerShell/Microsoft.PowerShell_profile.ps1"
-  raw_profile_path="$(pwsh -NoProfile -NoLogo -Command '$PROFILE.CurrentUserCurrentHost' 2>/dev/null | tr -d '\r')" || raw_profile_path=""
-  if [[ -n "$raw_profile_path" && -f "$bootstrap_profile_src" ]]; then
-    if command_exists cygpath; then
-      unix_profile_path="$(cygpath -u "$raw_profile_path" 2>/dev/null || printf '%s' "$raw_profile_path")"
-    else
-      unix_profile_path="$raw_profile_path"
-    fi
-    profile_dir="$(dirname "$unix_profile_path")"
-    mkdir -p "$profile_dir" 2>/dev/null || true
-    if [[ ! -L "$unix_profile_path" ]]; then
-      if ln -sf "$bootstrap_profile_src" "$unix_profile_path" 2>/dev/null || cp -f "$bootstrap_profile_src" "$unix_profile_path"; then
-        ok "pwsh bootstrap profile deployed to $unix_profile_path"
-      else
-        warn "Could not write pwsh profile at $unix_profile_path"
-      fi
-    fi
-  fi
-
-  pwsh -NoProfile -NoLogo -Command '
-    $policy = Get-ExecutionPolicy -Scope CurrentUser
-    if ($policy -in @("Undefined", "Restricted")) {
-      Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force -ErrorAction SilentlyContinue
-    }
-  ' >/dev/null 2>&1 || warn "Could not set RemoteSigned execution policy for pwsh (non-fatal)"
-  return 0
-}
-
 main() {
   local os
   os="$(detect_os)"
@@ -483,7 +434,6 @@ main() {
   install_herdr_terminal_browser
   write_dotfiles_path
   stow_packages
-  link_powershell_profile "$os"
 
   printf "\n\033[1;32mDone.\033[0m Remaining manual steps:\n"
   printf "  1. chsh -s %s   (set Zsh as default shell)\n" "$(command -v zsh || echo /bin/zsh)"

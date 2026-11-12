@@ -1,4 +1,4 @@
-PACKAGES = zsh powershell lazygit lazysql herdr
+PACKAGES = zsh lazygit lazysql herdr
 TARGET   = $(HOME)
 DOTFILES_DIR = $(shell pwd)
 CODES_DIR ?= $(HOME)/Codes
