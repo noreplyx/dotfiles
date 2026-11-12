@@ -18,8 +18,8 @@ target that prints `winget` install guidance instead of invoking `dnf`/`brew`.
 ## How to use this project
 
 This repository uses [GNU Stow](https://www.gnu.org/software/stow/) to manage
-dotfiles as symlinks. Each directory (`zsh/`, `powershell/`, `tmux/`, `starship/`,
-`herdr/`, `wezterm/`)
+dotfiles as symlinks. Each directory (`zsh/`, `powershell/`,
+`herdr/`, `lazygit/`, `lazysql/`)
 mirrors the target home directory structure. Running `stow` creates symlinks
 from your home directory back into this repo, so changes are tracked in one
 place.
@@ -37,26 +37,22 @@ cd ~/Codes/dotfiles
 # 3. Set Zsh as default shell
 chsh -s "$(command -v zsh)"
 
-# 4. Start tmux and press prefix+I to install plugins
-tmux new-session -s init
+# 4. Authenticate GitHub CLI
+gh auth login
 
-# 5. Start WezTerm once, then re-run ./setup.sh to pin tabline.wez to the reviewed commit
-wezterm
-./setup.sh
-
-# 6. Restart shell
+# 5. Restart shell
 exec zsh
 ```
 
 `setup.sh` is idempotent and detects Fedora vs macOS vs WSL vs Windows (dnf vs brew vs dnf-on-WSL vs winget guidance). Steps that
-require interaction (changing your shell, tmux plugin install) are left manual.
+require interaction (changing your shell, authenticating GitHub CLI) are left manual.
 
 `setup.sh` and `make install` write the repo location to
-`~/.config/dotfiles/path`, which tmux sources to find the plugin-override
-script. This means the repo can live anywhere, not just `~/Codes/dotfiles`.
+`~/.config/dotfiles/path` so shells can resolve the repo location.
+This means the repo can live anywhere, not just `~/Codes/dotfiles`.
 
-The projects directory defaults to `~/Codes` (used by tmux sessionx and the
-yazi `g c` bookmark). To change it, set `CODES_DIR` before running
+The projects directory defaults to `~/Codes` (used by the `c` shortcut in
+both shells). To change it, set `CODES_DIR` before running
 `setup.sh` or `make install`:
 
 ```bash
@@ -104,10 +100,7 @@ stow -t ~ example
 ## Included
 
 - **Zsh** — Zinit plugin manager with autosuggestions, completions, fzf-tab, syntax highlighting
-- **PowerShell 7 (`pwsh`)** — XDG profile with binary-mtime-invalidated init caching (`starship`, `zoxide`, `fnm`), `PSReadLine` predictive IntelliSense (`HistoryAndPlugin` + Tokyo Night palette), zero-startup-cost native `fzf` keybindings (`Ctrl+r`, `Ctrl+t`, `Alt+c`), CLI argument completers (`winget`, `gh`, `carapace`), `yazi` (`y`) and `eza`/`bat` wrappers, and WezTerm OSC 7 + `KB` user-var integration
-- **tmux** — TPM with tmux-sensible, tmux-sessionx (fzf session switcher), prefix-highlight. Vim-style pane resize, 72/28 split layout, custom fzf colors.
-- **Starship** — Minimal prompt with directory, git status, and language runtime info
-- **Yazi** — Terminal file manager with image preview (WezTerm), git status linemode, and plugins: smart-enter, full-border, toggle-pane, jump-to-char, smart-filter, smart-paste, diff, githead, starship, compress, zoom, rich-preview
+- **PowerShell 7 (`pwsh`)** — XDG profile with binary-mtime-invalidated init caching (`zoxide`, `fnm`), `PSReadLine` predictive IntelliSense (`HistoryAndPlugin` + Tokyo Night palette), zero-startup-cost native `fzf` keybindings (`Ctrl+r`, `Ctrl+t`, `Alt+c`), CLI argument completers (`winget`, `gh`, `carapace`), `eza`/`bat` wrappers, and OSC 7 directory reporting
 - **LazyGit** — TUI git client with Tokyo Night theme
 - **GitHub CLI** — `gh`, installed by `setup.sh` (dnf/brew). Authenticate once with `gh auth login`; tokens live in `~/.config/gh/hosts.yml` (never committed)
 - **LazySQL** — TUI database client (MySQL, PostgreSQL, SQLite, MSSQL, MongoDB) with configurable connections
@@ -128,7 +121,6 @@ sudo dnf install -y \
   git \
   stow \
   zsh \
-  tmux \
   curl \
   fzf \
   ripgrep \
@@ -136,7 +128,6 @@ sudo dnf install -y \
   bat \
   eza \
   zoxide \
-  yazi \
   chafa \
   jq \
   poppler-utils \
@@ -144,20 +135,8 @@ sudo dnf install -y \
 ```
 
 ```bash
-# Optional: ffmpeg for yazi video thumbnails (requires RPM Fusion)
+# Optional: ffmpeg for video thumbnails (requires RPM Fusion)
 sudo dnf install -y --skip-unavailable ffmpeg
-```
-
-Note: Fedora does not package `resvg` (yazi's SVG renderer) or `rich-cli`
-(yazi's markdown/CSV/JSON renderer); `setup.sh` installs them from upstream
-(resvg GitHub release into `~/.local/bin`, rich-cli via pipx).
-
-WezTerm is installed separately through the official Fedora Copr repository:
-
-```bash
-sudo dnf install -y dnf-plugins-core
-sudo dnf copr enable -y wezfurlong/wezterm-nightly
-sudo dnf install -y wezterm
 ```
 
 ### macOS
@@ -170,7 +149,6 @@ brew install \
   git \
   stow \
   zsh \
-  tmux \
   curl \
   fzf \
   ripgrep \
@@ -178,9 +156,6 @@ brew install \
   bat \
   eza \
   zoxide \
-  yazi \
-  resvg \
-  rich-cli \
   chafa \
   jq \
   poppler \
@@ -188,20 +163,11 @@ brew install \
   sevenzip
 ```
 
-Install WezTerm through Homebrew's cask repository:
-
-```bash
-brew install --cask wezterm
-```
-
-Install a [Nerd Font](https://www.nerdfonts.com/) (e.g. JetBrainsMono) for icons in Starship.
-
 ### WSL
 
 WSL is a distinct target from bare Fedora. Inside the WSL distribution, follow the
 Fedora prerequisites above (`dnf`). `setup.sh` reports `Detected OS: wsl` and reuses
-the Fedora `dnf` path. If `systemd` is unavailable in your WSL setup, the keyboard
-layout watcher falls back to the file cache (non-fatal).
+the Fedora `dnf` path.
 
 ### Windows (Git Bash)
 
@@ -209,7 +175,7 @@ layout watcher falls back to the file cache (non-fatal).
 prints `winget` guidance instead of installing automatically:
 
 ```powershell
-winget install Git.Git Starship.Starship fzf BurntSushi.ripgrep.MSVC sharkdp.fd sharkdp.bat eza-community.eza ajeetdsouza.zoxide sxyazi.yazi JesseDuffield.lazygit GitHub.cli wez.wezterm
+winget install Git.Git fzf BurntSushi.ripgrep.MSVC sharkdp.fd sharkdp.bat eza-community.eza ajeetdsouza.zoxide JesseDuffield.lazygit GitHub.cli
 ```
 
 Install `stow` (required for `./setup.sh` to deploy symlinks). `stow` is not
@@ -246,35 +212,15 @@ dotfiles/
 │   └── Documents/
 │       └── PowerShell/
 │           └── Microsoft.PowerShell_profile.ps1
-├── tmux/
-│   ├── .tmux.conf
-│   ├── scripts/
-│   │   └── apply-plugin-overrides.sh
-│   └── plugins/
-│       └── tmux-sessionx/
-│           ├── sessionx.tmux
-│           └── scripts/
-│               └── sessionx.sh
-├── starship/
-│   └── .config/
-│       └── starship.toml
-├── yazi/
-│   └── .config/
-│       └── yazi/
-│           ├── yazi.toml
-│           ├── keymap.toml
-│           ├── theme.toml
-│           ├── init.lua
-│           └── package.toml
 ├── lazygit/
 │   └── .config/
 │       └── lazygit/
 │           └── config.yml
 ├── lazysql/
-    └── .config/
-        └── lazysql/
-            └── config.toml
-├── herdr/
+│   └── .config/
+│       └── lazysql/
+│           └── config.toml
+└── herdr/
     └── .config/
         └── herdr/
             ├── config.toml
@@ -285,10 +231,6 @@ dotfiles/
                 ├── git-workspace-manager.sh
                 ├── keep-awake.ps1
                 └── keep-awake.sh
-└── wezterm/
-    └── .config/
-        └── wezterm/
-            └── wezterm.lua
 ```
 
 ---
@@ -316,7 +258,6 @@ Cross-platform PowerShell 7 (`pwsh`) profile in `powershell/.config/powershell/M
 
 ### Wrappers & Shortcuts
 
-- `y` — launches `yazi` and `cd`s to the selected directory on exit
 - `ls`, `ll`, `la`, `lt` — `eza` wrappers with icons and Git status (when `eza` is installed)
 - `catp` — `bat --paging=never` wrapper (keeps PowerShell's built-in `cat` alias intact for scripts)
 - `lg`, `c`, `..`, `...` — quick shortcuts for `lazygit`, `$CODES_DIR` (`~/Codes`), and parent directories
@@ -324,7 +265,7 @@ Cross-platform PowerShell 7 (`pwsh`) profile in `powershell/.config/powershell/M
 
 ### Startup Cache & Profiling
 
-External CLI init scripts (`starship`, `zoxide`, `fnm`, `gh`, `carapace`) are cached in
+External CLI init scripts (`zoxide`, `fnm`, `gh`, `carapace`) are cached in
 `~/.cache/powershell/<tool>-init.ps1` and automatically regenerated only when the binary's
 `LastWriteTimeUtc` is newer than the cache file.
 
@@ -336,162 +277,6 @@ pwsh -NoLogo -Command "exit"
 ```
 
 Per-machine overrides go in `~/.profile.local.ps1` (untracked by git).
-
----
-
-## Tmux
-
-### Keybindings
-
-| Key              | Action                        |
-| ---------------- | ----------------------------- |
-| `prefix + o`     | Launch sessionx (fzf session switcher) |
-| `prefix + y`     | Launch yazi in a new window   |
-| `prefix + H/J/K/L` | Resize pane left/down/up/right (5 cells) |
-| `prefix + I`     | Install/update TPM plugins    |
-| `prefix + R`     | Reload tmux config             |
-
-### sessionx (inside the fzf popup)
-
-| Key           | Action                        |
-| ------------- | ----------------------------- |
-| `enter`       | Switch to / create session    |
-| `ctrl-w`      | List all windows              |
-| `ctrl-t`      | Tree view of sessions+windows |
-| `ctrl-x`      | Browse config directory       |
-| `ctrl-e`      | Browse local directories      |
-| `ctrl-b`      | Go back to session list       |
-| `ctrl-r`      | Rename selected session       |
-| `alt-bspace`  | Kill selected session         |
-| `ctrl-u/d`    | Scroll preview up/down        |
-| `?`           | Toggle preview pane           |
-
-### Status bar
-
-```
-[prefix] | session_name | HH:MM
-```
-
-Shows prefix highlight indicator, current session name, and time.
-
-### WezTerm keyboard layout (EN/TH)
-
-Live layout segment in the tabline (`tabline_y`), kept as last-good or
-` -- ` when unknown — never a fake default:
-
-- `wezterm/.config/wezterm/scripts/detect-layout.sh` — prints `EN`/`TH`
-  (`UNKNOWN`, exit 2 when indeterminable); backend order
-  gsettings → ibus → hyprctl → fcitx5-remote → setxkbmap.
-  `FAST=1` fast-path serves the cache + cheap backends only (no slow
-  `defaults`/hyprctl/setxkbmap forks); on macOS `FAST=1` never calls
-  `defaults read`.
-- `wezterm/.config/wezterm/scripts/toggle-layout.sh [--next|--toggle|EN|TH]` —
-  switches via hyprctl → fcitx5 → ibus → gsettings → setxkbmap.
-  Optimistic: resolves WANT from cache/`FAST=1`, atomically writes the
-  cache + dual-pushes the user var + prints immediately, then heals in a
-  detached background job (switch, settle ~0.6s, full detect, correct on
-  mismatch so a failed switch heals in ~2s and never sticks).
-- `wezterm/.config/wezterm/scripts/kb-layout-watch.sh` (+ user systemd unit
-  `kb-layout-watch.service`, enabled by `setup.sh`) — blocking
-  `gsettings monitor`, no polling, negligible idle CPU (macOS: 5s poll,
-  ~12 forks/min max).
-- Toggle from WezTerm: `CTRL+SHIFT+SPACE` (fallback `ALT+SHIFT+L`) —
-  non-blocking handler flips state + toast instantly and fires the toggle
-  script detached (fire-and-forget); `.zshrc` precmd only re-emits the
-  cache (zero forks).
-- Daemon absence is graceful (cache + user-var fallback still render).
-
-### Layout
-
-New sessions start with a 72/28 horizontal split (left pane 72%, right pane 28%).
-
----
-
-## Yazi
-
-Terminal file manager with image preview (WezTerm), git status linemode, and plugins.
-
-### Plugins
-
-Installed via `ya pkg` (see `yazi/.config/yazi/package.toml`):
-
-- `smart-enter` — open files or enter directories with one key
-- `full-border` — full rounded border
-- `toggle-pane` — show/hide/maximize panes
-- `jump-to-char` — vim-like `f<char>` navigation
-- `git` — git status linemode
-- `smart-filter` — continuous filtering, auto-enter unique dir
-- `smart-paste` — paste into hovered directory or CWD
-- `diff` — diff selected with hovered file
-- `githead` — current branch in the status line
-- `starship` — starship prompt segment in the status line
-- `compress` — archive selected files
-- `zoom` — zoom in/out on the previewed image
-- `rich-preview` — rendered markdown/CSV/JSON/RST previews (needs `rich`)
-
-Note: yazi's built-in `d`/`D` already moves files to the native system trash
-(Finder Trash on macOS, `~/.local/share/Trash` on Linux). There is no official
-`trash` plugin (yazi's default `g t` binding references one that does not
-exist upstream, so our keymap overrides it with `noop`).
-
-### Preview dependencies
-
-Yazi's previewers delegate to external CLIs (installed by `setup.sh`):
-
-| File type      | Needs                                |
-| -------------- | ------------------------------------ |
-| Markdown/CSV/JSON/RST | `rich` (rich-preview plugin) |
-| SVG            | `resvg`                              |
-| PNG/JPG images | terminal graphics protocol, else `chafa` |
-| PDF            | `poppler` (`pdftoppm`/`pdftotext`)   |
-| Video          | `ffmpeg`                             |
-| Archives       | `7z`/`7zz`                           |
-
-If the markdown preview shows raw source, `rich` is missing or not on
-PATH. If the SVG preview is blank, `resvg` is missing. If image previews
-look blocky, yazi fell back to Chafa instead of the terminal's graphics
-protocol — run `yazi --debug` inside the exact terminal (and inside
-tmux) and check the `Drivers.matches` line; expect `Iip` for WezTerm,
-`Kgp` for Ghostty/kitty, `Sixel`/`Chafa` otherwise. Under tmux,
-`allow-passthrough on` must be set **and the tmux server restarted**
-(`tmux kill-server`).
-
-### Keybindings
-
-| Key        | Action                              |
-| ---------- | ----------------------------------- |
-| `l`        | Enter dir or open file (smart-enter) |
-| `f`        | Jump to char                        |
-| `F`        | Smart filter                        |
-| `p`        | Smart paste                         |
-| `T`        | Show/hide preview pane              |
-| `M`        | Maximize/restore preview pane       |
-| `Ctrl-d`   | Diff selected with hovered file     |
-| `g d`      | Cd to ~/Downloads                   |
-| `g c`      | Cd to projects dir (`$CODES_DIR`)   |
-| `g h`      | Cd to home                          |
-| `g z`      | Cd to ~/.config                     |
-
-### Install plugins
-
-```bash
-ya pkg install
-```
-
-### Troubleshooting
-
-Reinstall plugins:
-
-```bash
-rm -rf ~/.config/yazi/plugins
-ya pkg install
-```
-
-Clear image preview cache:
-
-```bash
-yazi --clear-cache
-```
 
 ---
 
@@ -519,25 +304,23 @@ Check where a symlink points:
 
 ```bash
 ls -l ~/.zshrc
-ls -l ~/.tmux.conf
-ls -l ~/.config/starship.toml
-ls -l ~/.config/yazi
+ls -l ~/.config/lazygit
+ls -l ~/.config/lazysql
+ls -l ~/.config/herdr
 ```
 
-### Tmux
+### Orphaned user state (notes only, repo does not touch `$HOME` outside stow)
 
-Reinstall TPM plugins:
+Removing these components from the repo does not delete per-user caches,
+plugin clones, or services that may exist on machines where they were
+previously installed. If you want to clean a machine, do it manually:
 
 ```bash
-rm -rf ~/.tmux/plugins/tpm
-git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
-# Start tmux, press prefix+I
+# caches (safe to delete, regenerated on demand)
+rm -rf ~/.cache/powershell/*-init.ps1
+rm -rf ~/.cache/zsh
 ```
 
-Re-apply plugin overrides:
-
-```bash
-bash ~/Codes/dotfiles/tmux/scripts/apply-plugin-overrides.sh
-```
-
-The script self-locates, so it works from any clone path.
+Previously installed tools, if no longer wanted, can be removed with the
+system package manager (for example `sudo dnf remove` / `brew uninstall` /
+`winget uninstall`). The repo itself never uninstalls machine packages.

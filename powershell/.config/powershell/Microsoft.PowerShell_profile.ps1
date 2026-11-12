@@ -130,12 +130,9 @@ function Resolve-CachedInitScript {
     return $null
 }
 
-# ── 3. Cached CLI Initializations & WezTerm OSC 7 / KB Integration ────────────
+# ── 3. Cached CLI Initializations & OSC 7 Directory Reporting ────────────
 
 $sectionStart = if ($script:IsProfileTimingEnabled) { [System.Diagnostics.Stopwatch]::GetTimestamp() } else { $null }
-
-$starshipInitPath = Resolve-CachedInitScript -Name 'starship' -Generator { & starship init powershell --print-full-init }
-if ($starshipInitPath) { . $starshipInitPath }
 
 $zoxideInitPath = Resolve-CachedInitScript -Name 'zoxide' -Generator { & zoxide init powershell }
 if ($zoxideInitPath) { . $zoxideInitPath }
@@ -145,8 +142,6 @@ if ($fnmInitPath) { . $fnmInitPath }
 
 if (Test-Path Function:\prompt) {
     $script:InnerPromptFunction = $function:prompt
-    $script:LastEmittedKeyboardLayout = ''
-    $script:KeyboardLayoutCachePath = Join-Path $HOME '.cache\wezterm-kb-layout'
 
     function global:prompt {
         $ansiEscape = [char]27
@@ -158,19 +153,6 @@ if (Test-Path Function:\prompt) {
             $normalizedProviderPath = $currentLocation.ProviderPath.Replace('\', '/').TrimStart('/')
             $hostName = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { 'localhost' }
             $prefixSequences += "${ansiEscape}]7;file://${hostName}/${normalizedProviderPath}${ansiBell}"
-        }
-
-        if ([System.IO.File]::Exists($script:KeyboardLayoutCachePath)) {
-            try {
-                $cachedLayout = ([System.IO.File]::ReadAllText($script:KeyboardLayoutCachePath) -replace '[^A-Za-z]', '').ToUpperInvariant()
-                if ($cachedLayout.Length -eq 2 -and $cachedLayout -ne $script:LastEmittedKeyboardLayout) {
-                    $script:LastEmittedKeyboardLayout = $cachedLayout
-                    $encodedLayout = [Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes($cachedLayout))
-                    $prefixSequences += "${ansiEscape}]1337;SetUserVar=KB=${encodedLayout}${ansiBell}"
-                }
-            } catch {
-                Write-Verbose "Failed to read keyboard layout cache: $($_.Exception.Message)"
-            }
         }
 
         "${prefixSequences}$(& $script:InnerPromptFunction)"
@@ -356,24 +338,9 @@ if ($carapaceCompletionPath) {
 
 Write-ProfileTiming -SectionName 'FzfAndCompletions' -StartTimestamp $sectionStart
 
-# ── 6. Interactive Ergonomics (Yazi, Eza, Bat, Navigation, Utilities) ─────────
+# ── 6. Interactive Ergonomics (Eza, Bat, Navigation, Utilities) ─────────
 
 $sectionStart = if ($script:IsProfileTimingEnabled) { [System.Diagnostics.Stopwatch]::GetTimestamp() } else { $null }
-
-function global:y {
-    $tempCwdFile = [System.IO.Path]::GetTempFileName()
-    try {
-        yazi @args --cwd-file="$tempCwdFile"
-        if ([System.IO.File]::Exists($tempCwdFile)) {
-            $targetDirectory = [System.IO.File]::ReadAllText($tempCwdFile).Trim()
-            if ($targetDirectory -and $targetDirectory -ne $PWD.Path -and (Test-Path -LiteralPath $targetDirectory -PathType Container)) {
-                Set-Location -LiteralPath $targetDirectory
-            }
-        }
-    } finally {
-        Remove-Item -LiteralPath $tempCwdFile -Force -ErrorAction SilentlyContinue
-    }
-}
 
 if (Get-Command -Name eza -CommandType Application -ErrorAction SilentlyContinue) {
     Remove-Item -LiteralPath Alias:\ls -Force -ErrorAction SilentlyContinue
