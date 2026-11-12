@@ -34,7 +34,6 @@ $sectionStart = if ($script:IsProfileTimingEnabled) { [System.Diagnostics.Stopwa
 if (-not $env:XDG_CONFIG_HOME) {
     $env:XDG_CONFIG_HOME = Join-Path $HOME '.config'
 }
-$env:EDITOR = 'nvim'
 if (-not $env:BUN_INSTALL) {
     $env:BUN_INSTALL = Join-Path $HOME '.bun'
 }
@@ -389,7 +388,6 @@ if (Get-Command -Name bat -CommandType Application -ErrorAction SilentlyContinue
 }
 
 function global:lg { lazygit @args }
-function global:v { nvim @args }
 function global:.. { Set-Location .. }
 function global:... { Set-Location ../.. }
 

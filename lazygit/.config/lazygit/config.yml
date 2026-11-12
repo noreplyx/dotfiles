@@ -20,7 +20,4 @@ refresher:
   refreshInterval: 30
   fetchInterval: 300
 
-os:
-  editPreset: "nvim-remote"
-
 notARepository: "quit"

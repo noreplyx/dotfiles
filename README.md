@@ -18,7 +18,7 @@ target that prints `winget` install guidance instead of invoking `dnf`/`brew`.
 ## How to use this project
 
 This repository uses [GNU Stow](https://www.gnu.org/software/stow/) to manage
-dotfiles as symlinks. Each directory (`zsh/`, `powershell/`, `tmux/`, `nvim/`, `starship/`,
+dotfiles as symlinks. Each directory (`zsh/`, `powershell/`, `tmux/`, `starship/`,
 `herdr/`, `wezterm/`)
 mirrors the target home directory structure. Running `stow` creates symlinks
 from your home directory back into this repo, so changes are tracked in one
@@ -92,11 +92,11 @@ make install
 
 ```bash
 # Create the directory structure matching your home directory
-mkdir -p nvim/.config/nvim/lua/plugins
+mkdir -p example/.config/example
 # Place your config file
-cp ~/.config/nvim/lua/plugins/example.lua nvim/.config/nvim/lua/plugins/example.lua
+cp ~/.config/example/config.toml example/.config/example/config.toml
 # Stow it
-stow -t ~ nvim
+stow -t ~ example
 ```
 
 ---
@@ -107,21 +107,11 @@ stow -t ~ nvim
 - **PowerShell 7 (`pwsh`)** — XDG profile with binary-mtime-invalidated init caching (`starship`, `zoxide`, `fnm`), `PSReadLine` predictive IntelliSense (`HistoryAndPlugin` + Tokyo Night palette), zero-startup-cost native `fzf` keybindings (`Ctrl+r`, `Ctrl+t`, `Alt+c`), CLI argument completers (`winget`, `gh`, `carapace`), `yazi` (`y`) and `eza`/`bat` wrappers, and WezTerm OSC 7 + `KB` user-var integration
 - **tmux** — TPM with tmux-sensible, tmux-sessionx (fzf session switcher), prefix-highlight. Vim-style pane resize, 72/28 split layout, custom fzf colors.
 - **Starship** — Minimal prompt with directory, git status, and language runtime info
-- **Neovim** — LazyVim-based IDE with TypeScript, .NET, Docker, SQL, testing, debugging, Git integration
 - **Yazi** — Terminal file manager with image preview (WezTerm), git status linemode, and plugins: smart-enter, full-border, toggle-pane, jump-to-char, smart-filter, smart-paste, diff, githead, starship, compress, zoom, rich-preview
-- **LazyGit** — TUI git client with Tokyo Night theme, opened from Neovim with `<leader>gg`
-- **GitHub CLI** — `gh`, installed by `setup.sh` (dnf/brew); powers Octo PR creation. Authenticate once with `gh auth login`; tokens live in `~/.config/gh/hosts.yml` (never committed)
-- **LazySQL** — TUI database client (MySQL, PostgreSQL, SQLite, MSSQL, MongoDB) with configurable connections, opened from Neovim with `<leader>ls`
+- **LazyGit** — TUI git client with Tokyo Night theme
+- **GitHub CLI** — `gh`, installed by `setup.sh` (dnf/brew). Authenticate once with `gh auth login`; tokens live in `~/.config/gh/hosts.yml` (never committed)
+- **LazySQL** — TUI database client (MySQL, PostgreSQL, SQLite, MSSQL, MongoDB) with configurable connections
 - **Herdr** — terminal workspace manager for AI coding agents, with always-running background server, pane state tracking (working/blocked/idle), direct agent navigation (`alt+[` / `alt+]` for previous/next agent), and agent-native CLI/socket API. Birdseye plugin (`prefix+shift+b`) shows all agents in a live grid/column dashboard. Automations plugin (`prefix+a`) schedules recurring agent prompts on cron with a live board. Terminal-browser plugin (`prefix+t`) opens a real Chromium browser in a right split. Git Workspace Manager (`prefix+o`) opens an interactive `fzf` overlay pane displaying active workspaces and Git worktrees with live status indicators (branch name, `[push:A | pull:B | rebase:C]` commit counters, dirty `*` flag), commit and status previews, fast worktree switching (`Enter`), and safe Git operations (`Alt-p` push, `Alt-u` pull, `Alt-r` rebase) with Herdr notifications (`git-workspace-manager.sh` / `git-workspace-manager.ps1`). Keep-awake toggle (`prefix+shift+a`) inhibits screen blanking/locking and system idle sleep (`keep-awake.sh` / `keep-awake.ps1`) with automatic cleanup when Herdr exits
-
-### Neovim plugins
-
-- **Git** — gitsigns (inline blame), lazygit, gitgraph (`<leader>gl`), diffview (`<leader>gd`), git-worktree (`<leader>gw`), git-messenger (`<leader>gm`), GitHub PR creation with Octo (`<leader>gpc`, requires `gh` + `gh auth login`), git-conflict
-- **opencode** — AI coding assistant with render-markdown, restart server with `<leader>or`
-- **yazi.nvim** — file manager in a floating window (`<leader>-`, `<leader>cw`, `<c-up>`)
-- **toggleterm** — floating terminal (`<leader>tf`, `<c-\>`)
-- **UI** — edgy (sidebar windows), aerial (code outline), rainbow-delimiters, indent-blankline, smear-cursor, snacks (picker/terminal), blink.cmp, nvim-colorizer
-- **Testing** — neotest with jest, vitest, and dotnet adapters
 
 ---
 
@@ -139,7 +129,6 @@ sudo dnf install -y \
   stow \
   zsh \
   tmux \
-  neovim \
   curl \
   fzf \
   ripgrep \
@@ -182,7 +171,6 @@ brew install \
   stow \
   zsh \
   tmux \
-  neovim \
   curl \
   fzf \
   ripgrep \
@@ -206,7 +194,7 @@ Install WezTerm through Homebrew's cask repository:
 brew install --cask wezterm
 ```
 
-Install a [Nerd Font](https://www.nerdfonts.com/) (e.g. JetBrainsMono) for icons in Neovim and Starship.
+Install a [Nerd Font](https://www.nerdfonts.com/) (e.g. JetBrainsMono) for icons in Starship.
 
 ### WSL
 
@@ -221,7 +209,7 @@ layout watcher falls back to the file cache (non-fatal).
 prints `winget` guidance instead of installing automatically:
 
 ```powershell
-winget install Git.Git Starship.Starship Neovim.Neovim fzf BurntSushi.ripgrep.MSVC sharkdp.fd sharkdp.bat eza-community.eza ajeetdsouza.zoxide sxyazi.yazi JesseDuffield.lazygit GitHub.cli wez.wezterm
+winget install Git.Git Starship.Starship fzf BurntSushi.ripgrep.MSVC sharkdp.fd sharkdp.bat eza-community.eza ajeetdsouza.zoxide sxyazi.yazi JesseDuffield.lazygit GitHub.cli wez.wezterm
 ```
 
 Install `stow` (required for `./setup.sh` to deploy symlinks). `stow` is not
@@ -231,7 +219,7 @@ provides it, then verify with `stow --version`.
 
 Then re-run `./setup.sh` to deploy symlinks via `stow` (install `stow` first if missing).
 
-`setup.sh` also configures Git performance settings (including Windows filesystem cache and fsmonitor daemon) so `lazygit` and Neovim Git plugins stay fast:
+`setup.sh` also configures Git performance settings (including Windows filesystem cache and fsmonitor daemon) so `lazygit` stays fast:
 
 ```bash
 git config --global core.preloadIndex true
@@ -270,45 +258,6 @@ dotfiles/
 ├── starship/
 │   └── .config/
 │       └── starship.toml
-├── nvim/
-│   └── .config/
-│       └── nvim/
-│           ├── init.lua
-│           ├── lazyvim.json
-│           ├── lazy-lock.json
-│           ├── stylua.toml
-│           ├── .neoconf.json
-│           ├── .gitignore
-│           ├── README.md
-│           ├── LICENSE
-│           ├── lua/
-│           │   ├── config/
-│           │   │   ├── lazy.lua
-│           │   │   ├── options.lua
-│           │   │   ├── keymaps.lua
-│           │   │   └── autocmds.lua
-│           │   └── plugins/
-│           │       ├── aerial.lua
-│           │       ├── blink.lua
-│           │       ├── colors.lua
-│           │       ├── diffview.lua
-│           │       ├── edgy.lua
-│           │       ├── git-conflict.lua
-│           │       ├── git-messenger.lua
-│           │       ├── git-worktree.lua
-│           │       ├── gitgraph.lua
-│           │       ├── gitsigns.lua
-│           │       ├── indent-blankline.lua
-│           │       ├── lazygit.lua
-│           │       ├── lazysql.lua
-│           │       ├── neotest.lua
-│           │       ├── opencode.lua
-│           │       ├── rainbow-delimiters.lua
-│           │       ├── smear-cursor.lua
-│           │       ├── snacks.lua
-│           │       ├── toggleterm.lua
-│           │       ├── ts-config.lua
-│           │       └── yazi.nvim.lua
 ├── yazi/
 │   └── .config/
 │       └── yazi/
@@ -370,7 +319,7 @@ Cross-platform PowerShell 7 (`pwsh`) profile in `powershell/.config/powershell/M
 - `y` — launches `yazi` and `cd`s to the selected directory on exit
 - `ls`, `ll`, `la`, `lt` — `eza` wrappers with icons and Git status (when `eza` is installed)
 - `catp` — `bat --paging=never` wrapper (keeps PowerShell's built-in `cat` alias intact for scripts)
-- `lg`, `v`, `c`, `..`, `...` — quick shortcuts for `lazygit`, `nvim`, `$CODES_DIR` (`~/Codes`), and parent directories
+- `lg`, `c`, `..`, `...` — quick shortcuts for `lazygit`, `$CODES_DIR` (`~/Codes`), and parent directories
 - `which`, `touch`, `mkcd` — cross-platform shell utilities
 
 ### Startup Cache & Profiling
@@ -572,7 +521,6 @@ Check where a symlink points:
 ls -l ~/.zshrc
 ls -l ~/.tmux.conf
 ls -l ~/.config/starship.toml
-ls -l ~/.config/nvim
 ls -l ~/.config/yazi
 ```
 

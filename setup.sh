@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PACKAGES="zsh powershell tmux starship nvim yazi lazygit lazysql herdr wezterm"
+PACKAGES="zsh powershell tmux starship yazi lazygit lazysql herdr wezterm"
 
 # Supply-chain pins (best-effort: upstream publishes no checksums/hashes).
 # Transport is hardened to HTTPS-only (--proto '=https' --tlsv1.2) everywhere.
@@ -96,7 +96,7 @@ detect_os() {
 
 install_packages() {
   local os="$1"
-  local pkgs=(git stow zsh tmux neovim curl fzf ripgrep bat eza zoxide yazi)
+  local pkgs=(git stow zsh tmux curl fzf ripgrep bat eza zoxide yazi)
   local missing=()
   for p in "${pkgs[@]}"; do
     command_exists "$p" || missing+=("$p")
@@ -777,7 +777,7 @@ main() {
   printf "  1. chsh -s %s   (set Zsh as default shell)\n" "$(command -v zsh || echo /bin/zsh)"
   printf "  2. tmux new-session -s init   then press prefix+I to install tmux plugins\n"
   printf "  3. Start wezterm once, then re-run ./setup.sh to pin tabline.wez to the reviewed commit\n"
-  printf "  4. gh auth login   (required for Octo PR creation <leader>gpc in Neovim)\n"
+  printf "  4. gh auth login   (to authenticate GitHub CLI)\n"
   printf "  5. exec zsh\n"
   printf "\nTip: set CODES_DIR=/path/to/projects before running setup.sh to change the\n"
   printf "     default projects directory (currently %s).\n" "${CODES_DIR:-$HOME/Codes}"
