@@ -112,7 +112,7 @@ stow -t ~ nvim
 - **LazyGit** — TUI git client with Tokyo Night theme, opened from Neovim with `<leader>gg`
 - **GitHub CLI** — `gh`, installed by `setup.sh` (dnf/brew); powers Octo PR creation. Authenticate once with `gh auth login`; tokens live in `~/.config/gh/hosts.yml` (never committed)
 - **LazySQL** — TUI database client (MySQL, PostgreSQL, SQLite, MSSQL, MongoDB) with configurable connections, opened from Neovim with `<leader>ls`
-- **Herdr** — terminal workspace manager for AI coding agents, with always-running background server, pane state tracking (working/blocked/idle), direct agent navigation (`alt+[` / `alt+]` for previous/next agent), and agent-native CLI/socket API. Birdseye plugin (`prefix+shift+b`) shows all agents in a live grid/column dashboard. Automations plugin (`prefix+a`) schedules recurring agent prompts on cron with a live board. Terminal-browser plugin (`prefix+t`) opens a real Chromium browser in a right split. Keep-awake toggle (`prefix+shift+a`) inhibits screen blanking/locking and system idle sleep (`keep-awake.sh` / `keep-awake.ps1`) with automatic cleanup when Herdr exits
+- **Herdr** — terminal workspace manager for AI coding agents, with always-running background server, pane state tracking (working/blocked/idle), direct agent navigation (`alt+[` / `alt+]` for previous/next agent), and agent-native CLI/socket API. Birdseye plugin (`prefix+shift+b`) shows all agents in a live grid/column dashboard. Automations plugin (`prefix+a`) schedules recurring agent prompts on cron with a live board. Terminal-browser plugin (`prefix+t`) opens a real Chromium browser in a right split. Git Workspace Manager (`prefix+o`) opens an interactive `fzf` overlay pane displaying active workspaces and Git worktrees with live status indicators (branch name, `[push:A | pull:B | rebase:C]` commit counters, dirty `*` flag), commit and status previews, fast worktree switching (`Enter`), and safe Git operations (`Alt-p` push, `Alt-u` pull, `Alt-r` rebase) with Herdr notifications (`git-workspace-manager.sh` / `git-workspace-manager.ps1`). Keep-awake toggle (`prefix+shift+a`) inhibits screen blanking/locking and system idle sleep (`keep-awake.sh` / `keep-awake.ps1`) with automatic cleanup when Herdr exits
 
 ### Neovim plugins
 
@@ -330,6 +330,10 @@ dotfiles/
         └── herdr/
             ├── config.toml
             └── scripts/
+                ├── git-workspace-manager-preview.cmd
+                ├── git-workspace-manager-preview.sh
+                ├── git-workspace-manager.ps1
+                ├── git-workspace-manager.sh
                 ├── keep-awake.ps1
                 └── keep-awake.sh
 └── wezterm/

@@ -32,6 +32,14 @@ type = "shell"
 command = "powershell -NoLogo -WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%USERPROFILE%/.config/herdr/scripts/keep-awake.ps1\" --toggle || ~/.config/herdr/scripts/keep-awake.sh --toggle"
 description = "toggle screen keep-awake"
 
+[[keys.command]]
+key = "prefix+o"
+type = "popup"
+width = "85%"
+height = "85%"
+command = "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File \"%USERPROFILE%/.config/herdr/scripts/git-workspace-manager.ps1\" || ~/.config/herdr/scripts/git-workspace-manager.sh"
+description = "git workspace manager"
+
 [terminal]
 kitty_graphics = true
 

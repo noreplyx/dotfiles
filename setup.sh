@@ -434,11 +434,15 @@ sync_herdr_target_dir() {
     cp -rf "$DOTFILES_DIR/herdr/.config/herdr/scripts/." "$target_dir/scripts/" 2>/dev/null || true
   fi
   chmod +x "$target_dir/scripts/keep-awake.sh" 2>/dev/null || true
+  chmod +x "$target_dir/scripts/git-workspace-manager.sh" 2>/dev/null || true
+  chmod +x "$target_dir/scripts/git-workspace-manager-preview.sh" 2>/dev/null || true
   preseed_herdr_cache_badges
 }
 
 install_herdr() {
   chmod +x "$DOTFILES_DIR/herdr/.config/herdr/scripts/keep-awake.sh" 2>/dev/null || true
+  chmod +x "$DOTFILES_DIR/herdr/.config/herdr/scripts/git-workspace-manager.sh" 2>/dev/null || true
+  chmod +x "$DOTFILES_DIR/herdr/.config/herdr/scripts/git-workspace-manager-preview.sh" 2>/dev/null || true
   if [[ "${1:-}" == "windows" && -n "${APPDATA:-}" ]]; then
     local appdata_dir="$APPDATA"
     command_exists cygpath && appdata_dir="$(cygpath -u "$APPDATA")"
